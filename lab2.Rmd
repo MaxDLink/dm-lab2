@@ -1,0 +1,24 @@
+---
+Title: Data Mining Lab 2
+Authors: Max Link, Logan Lu, Jadon Klipsch
+Date: "2025-02-21"
+Description: "In this project, we will focus on clustering"
+output:
+  pdf_document:
+  latex_engine: xelatex
+
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+# Load required libraries!!
+library(dplyr)      # For data manipulation
+library(ggplot2)    # For visualizations
+library(tidyr)      # For cleaning data
+```
+
+```{r dataframe}
+print("hello world")
+```
