@@ -19,6 +19,276 @@ library(ggplot2)    # For visualizations
 library(tidyr)      # For cleaning data
 ```
 
-```{r dataframe}
-print("hello world")
+
+## 1.0 Problem Statement 
+
+We will address the following key questions to aid Texas policymakers: 
+
+
+* Does social distancing reduce confirmed cases? 
+
+* Should we build more hospitals around dense or older populations to better manage healthcare re-
+sources?
+
+* Could social welfare programs be expanded to protect vulnerable communities? 
+
+## Install Required Packages 
+
+```{r, results=False}
+# add packages to install here
+pkgs <- c("tidyverse", "factoextra", "cluster", "patchwork", "tibble", "ggrepel",
+          "mclust", "mcclust", "fpc", "seriation", "apcluster", "dbscan", "entropy", "maps", "kernlab", "skimr")
+pkgs_install <- pkgs[!(pkgs %in% installed.packages()[,"Package"])]
+if(length(pkgs_install)) install.packages(pkgs_install)
+
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(readr))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(tibble))
+suppressPackageStartupMessages(library(mclust))
+suppressPackageStartupMessages(library(mcclust))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(ggrepel))
+suppressPackageStartupMessages(library(cluster))
+suppressPackageStartupMessages(library(patchwork))
+suppressPackageStartupMessages(library(factoextra))
+suppressPackageStartupMessages(library(fpc))
+suppressPackageStartupMessages(library(seriation))
+suppressPackageStartupMessages(library(apcluster))
+suppressPackageStartupMessages(library(dbscan))
+suppressPackageStartupMessages(library(entropy))
+suppressPackageStartupMessages(library(maps))
+suppressPackageStartupMessages(library(skimr))
+
 ```
+
+## 2.0 Data Preperation 
+
+### K means deterministic 
+```{r}
+set.seed(123)  # make k-means deterministic
+options(warn=0)
+```
+
+### 2.1 Variable Selection
+
+We will analyze the following variables: 
+
+
+* `infection_rate` (ratio): confirmed cases / total population
+
+  * Used to compare the rate of Covid-19 infections in a population. 
+  
+* `death_rate` (ratio): deaths / total population
+
+  * Used to compare the morbidity rate in a population
+  
+* `median_age` (ratio): the median age of a county
+
+  * Used to help Texas policymakers make age related decisions like focusing resources towards older populations
+
+* `median_income` (ratio): the median income of a county
+
+  * Used to help Texas policymakers identify communities in need of resources
+    
+* `percent_retail_drop` (ratio): the percentage change of total visitors to the retail sector
+
+  * Determines if social distancing occurred by looking at the reduction of people going to retail stores 
+  
+* `percent_grocery_drop` (ratio): the percentage change of total visitors to grocery stores
+  
+  * Determines if social distancing occurred by looking at the reduction of people going to grocery stores 
+  
+* `percent_transit_drop`(ratio): the percentage change of total visitors using public transit
+
+  * Determines if social distancing occurred by looking at the reduction of people using public transit 
+
+  
+* `infection_rate_per_capita_april_june`(ratio): Number of cases per 1000 people in the time frame of April-June 2020
+
+  * Used to compare counties response to COVID spread right after social distancing measures were taken
+
+* `hispanic_capita` (ratio): Number of Hispanic people / total population 
+
+  * Used to compare infection rates among the Hispanic (non-white) population
+  
+* `black_capita` (ratio): Number of black people / total population
+  
+  * Used to compare infection rates among the African American population
+  
+* `white_capita` (ratio): Number of white people / total population
+
+  * Used to compare infection rates among the Caucasian population
+
+All ratio values will be standardized to zero mean
+
+Cluster algorithms will use Euclidean distance measurements. Euclidean measurement is ideal for scalar values. We do not anticipate high variance or outliers
+
+### 2.2 Data Preprocessing
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+dataset_cases <- read_csv("COVID-19/COVID-19_cases_TX.csv", show_col_types = FALSE)
+dataset_census <- read_csv("COVID-19/COVID-19_cases_plus_census.csv", show_col_types = FALSE)
+dataset_mobility <- read_csv("COVID-19/Global_Mobility_Report.csv")
+
+# Holidays: Christmas, Thanksgiving, Easter, New Years
+excluded_dates <- as.Date(c("2020-12-25	", "2020-11-26", "2020-04-12", "2021-01-01"))  # Example of excluded dates
+
+dataset_mobility <- dataset_mobility |>
+  rename( retail = retail_and_recreation_percent_change_from_baseline,
+          grocery = grocery_and_pharmacy_percent_change_from_baseline,
+          parks = parks_percent_change_from_baseline,
+          transit = transit_stations_percent_change_from_baseline,
+          workplaces = workplaces_percent_change_from_baseline,
+          residential = residential_percent_change_from_baseline) |>
+  filter(sub_region_2 != "") |>
+  select(-metro_area, -iso_3166_2_code, -census_fips_code, -country_region_code)
+dataset_mobility <- dataset_mobility |>
+  filter(country_region == "United States") |>
+  filter(sub_region_1 != "") |>
+  filter(!date %in% excluded_dates)
+
+dataset <- dataset_census %>%
+    # take rows representing counties in Texas
+    filter(state == 'TX') %>%
+
+    # add new columns infection_rate, death_rate
+    mutate(
+      infection_rate = confirmed_cases / total_pop,
+      death_rate = deaths / confirmed_cases,
+      hispanic_capita = hispanic_pop / total_pop,
+      white_capita = white_pop / total_pop,
+      black_capita = black_pop / total_pop
+    ) %>%
+
+    # standardize total_pop by scaling to mean of zero & std dev of 1
+    mutate(across(c(total_pop), ~ scale(.) %>% as.vector())) %>%
+
+    # take subset of columns from census dataset
+    select("county_name",
+           "total_pop",
+           "median_age",
+           "median_income",
+           "infection_rate",
+           "death_rate",
+           "hispanic_capita",
+           "white_capita",
+           "black_capita") %>%
+
+    # drop rows with missing data
+    drop_na()
+
+result <- dataset_cases %>%
+  filter(date %in% as.Date(c("2020-04-01", "2020-06-01"))) %>%  # Filter for the two dates
+  group_by(county_name) %>%  # Group by county
+  arrange(county_name, date) %>%  # Arrange by county and date
+  summarize(
+    difference = confirmed_cases[date == as.Date("2020-06-01")] -
+                 confirmed_cases[date == as.Date("2020-04-01")],
+    difference_deaths = deaths[date == as.Date("2020-06-01")] -
+                 deaths[date == as.Date("2020-04-01")],
+  ) %>%
+  ungroup()
+
+
+# View the result
+census_tx <- dataset_census|>
+  filter(state=='TX')
+
+result <- merge(result, census_tx) |>
+  mutate(cases_per_1000 = difference/total_pop*1000) |>
+  mutate(deaths_per_1000 = difference_deaths/total_pop*1000) |>
+  select(county_name,cases_per_1000, deaths_per_1000)
+
+min_transit <- dataset_mobility |>
+  filter(sub_region_1 == "Texas") |>
+  filter(!is.na(transit)) |>
+  group_by(sub_region_2) |>
+  summarise(min_transit = (min(transit)))
+
+transit_df <- merge(min_transit,result,by.x = c("sub_region_2"), by.y = c("county_name"))
+
+
+min_grocery <-dataset_mobility |>
+  filter(sub_region_1 == "Texas") |>
+  filter(!is.na(grocery)) |>
+  group_by(sub_region_2) |>
+  summarise(min_grocery = (min(grocery)))
+
+grocery_df <- merge(min_grocery,result,by.x = c("sub_region_2"), by.y = c("county_name"))
+  
+min_retail <- dataset_mobility |>
+  filter(sub_region_1 == "Texas") |>
+  filter(!is.na(retail)) |>
+  group_by(sub_region_2) |>
+  summarise(min_retail = (min(retail)))
+
+retail_df <- merge(min_retail,result,by.x = c("sub_region_2"), by.y = c("county_name"))  
+
+skim(transit_df)
+skim(grocery_df)
+skim(retail_df)
+skim(dataset)
+skim(dataset_mobility)
+```
+
+## 3.0 Modeling
+
+### 3.1 Cluster Analysis 1 - Median Age and Death Rate
+
+In our last report, we found an increased death rate in older communities. We recommended Johnson and Johnson invest in healthcare resources for these older communities to better flatten the curve and stop unnecessary deaths. 
+
+In this section, we will use k-means clustering to segment communities into distinct groups based on median age and death rate among confirmed cases.
+
+We'll use the clusters to determine which communities are at greatest risk of COVID-19-related mortality and advise Johnson and Johnson to prioritize healthcare funding where necessary. 
+
+We will start with the Elbow method to determine the optimal number of groups we'll need to create. The Elbow method identifies the ideal number of clusters by calculating the within-cluster sum of squares (WCSS) of various cluster counts and selecting the cluster count where further increases yield minimal decreases in WCSS.
+
+```{r, echo=FALSE, warning=FALSE}
+dataset_1 <- tibble(x = dataset$median_age, y = dataset$death_rate)
+dataset_1_scaled <- mutate(dataset_1, across(everything(), ~ as.numeric(scale(.))))
+
+dataset_1_ks <- 1:10
+dataset_1_WCSS <- sapply(dataset_1_ks, FUN = function(k) {
+  kmeans(dataset_1_scaled, centers = k, nstart = 25)$tot.withinss
+})
+
+ggplot(tibble(dataset_1_ks, dataset_1_WCSS), aes(dataset_1_ks, dataset_1_WCSS)) + 
+  geom_line() +
+  geom_vline(xintercept = 7, color = "red", linetype = 2) +
+  scale_x_continuous(breaks = seq(min(dataset_1_ks), max(dataset_1_ks), by = 1)) +
+  labs(title = "K-Means Elbow Method", x = "Num. Clusters", y = "WCSS", caption="Figure 3.1.1") +
+  theme(plot.caption = element_text(hjust=0, size=rel(0.8)))
+```
+
+The Elbow method in Figure 3.1.1 does not show a distinct elbow point. Too few clusters may cause underfitting and too many clusters may increase complexity without adding value. 
+
+We got around this by choosing seven clusters because seven clusters were the smallest number with a WCSS at or below 100. 
+
+
+Now, we can visualize our k-means clusters using a scatter plot. This scatter plot will help us explore any discernible patterns in the age and death rate distributions.
+
+
+```{r, echo=FALSE, warning=FALSE}
+dataset_1_km <- kmeans(dataset_1_scaled, centers=7)
+dataset_1_clustered <- dataset_1 %>% add_column(cluster = factor(dataset_1_km$cluster))
+
+ggplot(dataset_1_clustered, aes(x = x, y = y)) +
+  geom_point(aes(color = factor(cluster))) +
+  labs(title = "K Means Clustering of Median Age to Death Rate", color = "Cluster", x = "Median Age", y = "Death Rate", caption="Figure 3.1.2") +
+  theme(plot.caption = element_text(hjust=0, size=rel(0.8))) +
+  theme_minimal()
+```
+
+
+Figure 3.1.2 demonstrates that.... 
+
+
+
+
+
+
+
+
