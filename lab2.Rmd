@@ -283,7 +283,23 @@ ggplot(dataset_1_clustered, aes(x = x, y = y)) +
 ```
 
 
-Figure 3.1.2 demonstrates that.... 
+Figure 3.1.2 indicates seven clusters showing age and death rates among confirmed cases. 
+
+Cluster 1 shows counties with a relatively high mortality rate (0.0375%) & median age (45-54). These communities may benefit from additional healthcare resources to manage COVID-19 cases and reduce mortality. 
+
+Cluster 7 consists of counties with the highest observed COVID-19 mortality rate, despite a relatively younger median age (29-41). These counties may represent outliers or may have artificially elevated death rates caused by external factors.
+
+
+We'll start the evaluation using a technique known as Silhouette analysis to measure the similarity of records within their cluster and their dissimilarity to records in other clusters. A high silhouette average will indicate that county records belong to their appropriate cluster.
+
+```{r, echo=FALSE, warning=FALSE}
+fviz_silhouette(silhouette(dataset_1_km$cluster, dist(dataset_1_scaled)), label = FALSE, print.summary=FALSE) +
+  labs(title = "Cluster Silhoutte Plot", x = "Clusters", y = "Silhouette Width (Avg)", caption="Figure 3.1.3") +
+  theme(plot.caption = element_text(hjust=0, size=rel(0.8)))
+```
+
+resume at line 266 
+
 
 
 
