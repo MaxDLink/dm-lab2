@@ -2,11 +2,12 @@
 Title: Data Mining Lab 2
 Authors: Max Link, Logan Lu, Jadon Klipsch
 Date: "2025-02-21"
-Description: "In this project, we will focus on clustering"
+Description: In this project, we will focus on clustering
 output:
-  pdf_document:
+  pdf_document: null
   latex_engine: xelatex
-
+  html_document:
+    df_print: paged
 ---
   
 ```{r setup, include=FALSE}
@@ -17,6 +18,9 @@ knitr::opts_chunk$set(echo = TRUE)
 library(dplyr)      # For data manipulation
 library(ggplot2)    # For visualizations
 library(tidyr)      # For cleaning data
+library(ggrepel)
+
+
 ```
 
 
@@ -34,7 +38,7 @@ sources?
 
 ## Install Required Packages 
 
-```{r, results=False}
+```{r, results='hide'}
 # add packages to install here
 pkgs <- c("tidyverse", "factoextra", "cluster", "patchwork", "tibble", "ggrepel",
           "mclust", "mcclust", "fpc", "seriation", "apcluster", "dbscan", "entropy", "maps", "kernlab", "skimr")
@@ -348,8 +352,588 @@ ggplot(dataset_1_cluster_1, aes(x = x, y = y, color=cluster)) +
   theme(legend.position = "none", plot.caption = element_text(hjust=0, size=rel(0.8)))
 ```
 
-We recommend policymakers allocate additional funding to Sabine County, Red River County, Foard County, and other counties represented in Figure 3.1.4 to support preventative healthcare measures aimed at mitigating COVID-19 impacts and reducing preventable deaths. 
 
+We recommend policymakers allocate additional funding to Sabine County, Red River County, Foard County, and other counties represented in Figure 3.1.4 to support preventative healthcare measures aimed at mitigating COVID-19 impacts and reducing preventable deaths.
+
+### 3.2 Cluster Analysis 2 - Median Income and Infection Rate
+
+In this section, we'll continue to explore the relationship between lower median incomes and increased infection rates identified in the previous report.
+
+We'll utilize a hierarchical clustering algorithm to classify counties into groups in order to identify communities that would most benefit from social programs aimed at reducing confirmed cases.
+
+First, we'll use the Silhouette method to determine the optimal number of clusters in which to group the counties. The Silhouette method determines the optimal cluster count by calculating the average silhouette width (ASW) for different numbers of clusters and selecting the count with the highest ASW.
+
+```{r, echo=FALSE, warning=FALSE}
+dataset_2 <- tibble(x = dataset$median_income, y = dataset$infection_rate)
+dataset_2_scaled <- mutate(dataset_2, across(everything(), ~ as.numeric(scale(.))))
+dataset_2_dist <- dist(dataset_2_scaled)
+
+dataset_2_ks = 2:10
+dataset_2_ASW <- sapply(dataset_2_ks, function (k) {
+  cluster_assignments <- kmeans(dataset_2_scaled, centers = k, nstart = 5)$cluster
+  fpc::cluster.stats(dataset_2_dist, cluster_assignments)$avg.silwidth
+})
+
+dataset_2_best_k <- dataset_2_ks[which.max(dataset_2_ASW)]
+
+ggplot(tibble(dataset_2_ks, dataset_2_ASW), aes(dataset_2_ks, dataset_2_ASW)) + 
+  geom_line() +
+  geom_vline(xintercept = dataset_2_best_k, color = "red", linetype = 2) +
+  labs(title = "Silhouette Method", x = "Num. Clusters", y = "ASW", caption="Figure 3.2.1") +
+  theme(plot.caption = element_text(hjust=0, size=rel(0.8)))
+```
+
+The Silhouette method, shown in Figure 3.2.1, suggests grouping the counties into three distinct clusters.
+
+Next, we'll apply hierarchical clustering to assign each county to one of the identified groups. Each group will represent a subset of counties with similar median income and infection rate. We will use the clusters to identify the communities that would most benefit from social programs and measures to prevent the spread of COVID-19.
+
+We'll present the clusters using a dendrogram and a scatterplot to provide a comprehensive view of the groupings to reveal potential insights.
+
+```{r, echo=FALSE, warning=FALSE}
+dataset_2_hc <- hclust(dataset_2_dist, method = "ward.D2")
+
+dataset_2_clusters <- cutree(dataset_2_hc, k = 3)
+dataset_2_clustered <- dataset_2 %>% add_column(cluster = factor(dataset_2_clusters))
+
+fviz_dend(dataset_2_hc, k = 3) +
+  labs(title = "Hierarchical Dendogram", caption="Figure 3.2.2") +
+  theme(plot.caption = element_text(hjust=0, size=rel(0.8)))
+
+ggplot(dataset_2_clustered, aes(x, y, color = cluster)) +
+  geom_point() +
+  labs(title = "Median Income to Infection Rate Clusters", x = "Median Income", y = "Infection Rate", caption="Figure 3.2.3") +
+  theme(plot.caption = element_text(hjust=0, size=rel(0.8)))
+```
+
+The dendrogram (Figure 3.2.2) displays three balanced trees, indicating clusters of relatively similar sizes, with overlapping labels due to the high number of counties represented. The scatterplot (Figure 3.2.3) depicts three clusters that contain counties with comparable median incomes and infection rates.
+
+Cluster 2 represents communities with lower median incomes ($25,000 - $60,000) and low infection rates, indicating that these counties were able to flatten the curve despite income constraints.
+
+Cluster 3 represents higher-income counties ($50,000 - $95,000), where, as anticipated, nearly all had low infection rates. Counties in this cluster with infection rates above 0.10 may have been misclassified, as they do not align with the negative correlation trend.
+
+Cluster 1 represents communities with lower median income ($25,000 - $60,000) and high infection rates (0.75+). These counties would benefit the most from social programs that mitigate COVID-19 infections due to socioeconomic factors.
+
+Next, we should evaluate the accuracy of our clusters. We’ll start by analyzing the proximity matrix using a dissimilarity plot.
+
+```{r, echo=FALSE, warning=FALSE}
+ggdissplot(dataset_2_dist, labels = dataset_2_clusters) +
+  labs(title = "Median Income to Infection Rate Clusters", caption="Figure 3.2.4") +
+  theme(plot.caption = element_text(hjust=0, size=rel(0.8)))
+```
+
+In Figure 3.2.4 we can see a clear self-similarity between cells within a cluster, indicating that the counties are clustered correctly.
+
+Next, we'll compare the hierarchical clusters against a model representative of the ground truth identified in the previous report - a negative correlation between median income and infection rate.
+
+  * Low Income, High Rate: `median_income` <= $55,000, `infection_rate` >= 0.075
+  * Low Income, Low Rate: `median_income` < $55,000, `infection_rate` < 0.075
+  * Uncategorized
+
+We'll use the variation of information (VI) distance to determine the validity of our hierarchical clusters. A very low value indicates a high degree of similarity.
+  
+```{r, echo=FALSE, warning=FALSE}
+dataset_2_clustered <- dataset_2_clustered %>%
+  mutate(risk_level = case_when(
+    x <= 55000 & y >= 0.075 ~ "Low Income, High Rate",
+    x < 55000 & y < 0.075 ~ "Low Income, Low Rate",
+    TRUE ~ "Uncategorized",
+  ))
+
+vi_index <- vi.dist(as.numeric(factor(dataset_2_clustered$risk_level)), as.numeric(dataset_2_clustered$cluster))
+vi_index
+```
+
+There is a VI index of *0.75* between datasets, indicating a low to moderate dissimilarity between the expected clusters and the hierarchical clusters. In this context, classification errors may lead to some counties receiving unnecesary aid, while others may not receive adequate support. We should examine Cluster 1 for any additional factors contributing to reduced infection rates and include these insights in our recommendations alongside financial aid.
+
+To conclude, we’ll identify the counties most likely to benefit from financial aid aimed at reducing infection rates.
+
+```{r, echo=FALSE, warning=FALSE}
+dataset_2_cluster_1 <- dataset_2_clustered %>%
+  mutate(county_name = dataset$county_name) %>%
+  filter(cluster == 1)
+
+ggplot(dataset_2_cluster_1, aes(x = x, y = y, color=cluster)) +
+  geom_point(size = 3) +
+  geom_text_repel(aes(label = county_name)) +
+  labs(x = "Median Income", y = "Infection Rate", title = "Most Vulnerable Cluster", caption="Figure 3.2.5") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+We recommend that Texas policymakers provide financial aid to Childress County, Hale County, Lubbock County, and the others depicted in Figure 3.2.5 to alleviate the financial burden on these communities and help reduce the spread of future pandemics.
+
+### 3.3 Cluster Analysis 3 - Demographics
+
+```{r, echo=FALSE, warning=FALSE}
+dataset_scaled <- mutate(dataset |> select(-county_name), across(everything(), ~ as.numeric(scale(.))))
+
+aggregate_percentages_demographics <- dataset_census %>%
+  filter(state == "TX") %>%
+  summarise(
+    white_percentage = (sum(white_pop) / sum(total_pop)) * 100,
+    hispanic_percentage = (sum(hispanic_pop) / sum(total_pop)) * 100,
+    black_percentage = (sum(black_pop) / sum(total_pop)) * 100,
+    asian_percentage = (sum(asian_pop) / sum(total_pop)) * 100
+  )
+knitr::kable(aggregate_percentages_demographics, format = "markdown")
+```
+
+In our previous report, we found that more urban counties experienced higher growth in confirmed COVID cases compared to rural counties. In this cluster analysis, we aim to identify potential indicators of communities that may be at greater risk for higher COVID case counts and deaths. Specifically, we will evaluate whether counties with a particularly high concentration of certain demographic groups had different infection rates. To investigate this, we will focus on the demographic groups that constitute the majority of the Texas population—White, Hispanic, and Black communities, which together represent 93% of the state’s population. Given this, we will analyze the infection rates in relation to the per capita percentages of Hispanics, Whites, and Blacks.
+
+
+We will use K-means clustering to identify whether there are Texas counties where infection rates that are high are influenced by demographic composition. This analysis can provide valuable insights for policymakers, helping to determine whether specific communities are at increased risk of higher infection rates based on demographics.It will also help policymakers make decisions on how to distribute resources to the counties.
+
+To start we need to determine the correct amount of clusters. This will be done by finding the Average Silhouette Width.
+
+
+```{r, echo=FALSE, fig.height=5, fig.width=7}
+
+
+# Unscaled K-means data
+kmeans_data <- dataset %>%
+  select(county_name, hispanic_capita, white_capita, black_capita, infection_rate)
+
+# K-means scaled data with selected demographic groups per capita
+kmeans_data_scaled <- dataset_scaled %>%
+  select(hispanic_capita, white_capita, black_capita, infection_rate)
+
+
+#creates a distance matrix for kmeans_data
+d <- dist(kmeans_data_scaled, method = "euclidean")
+
+ks <- 2:10
+
+# Calculate the Average Silhouette Width for each k, with error handling
+ASW <- sapply(ks, FUN = function(k) {
+  clustering_result <- kmeans(kmeans_data_scaled, centers = k, nstart = 5)
+  cluster_stats <- cluster.stats(d, clustering_result$cluster)
+  if ("avg.silwidth" %in% names(cluster_stats)) {
+    return(cluster_stats$avg.silwidth)
+  } else {
+    return(NA)  # Return NA if avg.silwidth is not available
+  }
+})
+
+
+best_k <- ks[which.max(ASW)]
+
+ggplot(tibble(ks, ASW), aes(ks, ASW)) + 
+  geom_line() +
+  geom_vline(xintercept = best_k, color = "red", linetype = 2) +
+  labs(
+    title = "Average Silhouette Width (ASW) Across Different K Values",
+    x = "Number of Clusters (K)",
+    y = "Average Silhouette Width (ASW)",
+    caption = "Figure 3.3.1"
+  )
+```
+Based on Figure 3.3.1, the optimal number of clusters for this data is 2. We will proceed by plotting graphs for each of the three demographic groups by county, comparing them against infection rates.
+
+```{r, echo=FALSE, warning=FALSE}
+# Perform K-means clustering
+hispanic_white_black_kmeans <- kmeans(kmeans_data_scaled, centers = 2)
+
+
+# Add the cluster labels to the data
+kmeans_data <- kmeans_data |>
+  mutate(cluster = factor(hispanic_white_black_kmeans$cluster))
+
+# Plot the clusters
+ggplot(kmeans_data, aes(x = hispanic_capita, y = infection_rate, color = cluster)) +
+  geom_point() +
+  labs(title = "K-means Clustering of Texas Counties(Hispanic)",
+       x = "Hispanics per Capita(%)",
+       y = "COVID Infection Rate per Capita(%)",
+       caption = "Figure 3.3.2") +
+  theme_minimal()
+```
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot(kmeans_data, aes(x = white_capita, y = infection_rate, color = cluster)) +
+  geom_point() +
+  labs(title = "K-means Clustering of Texas Counties(white)",
+       x = "Whites per Capita(%)",
+       y = "COVID Infection Rate per Capita(%)",
+       caption = "Figure 3.3.3") +
+  theme_minimal()
+```
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot(kmeans_data, aes(x = black_capita, y = infection_rate, color = cluster)) +
+  geom_point() +
+  labs(title = "K-means Clustering of Texas Counties(Black)",
+       x = "Blacks per Capita(%)",
+       y = "COVID Infection Rate per Capita(%)",
+       caption = "Figure 3.3.4") +
+  theme_minimal()
+
+```
+In the figures above, K-means identified two clusters for each of the three demographic groups. In Figure 3.3.2, Cluster 2 includes counties with a per capita range of 0-50% and an infection rate primarily between 0-10%. Cluster 1 includes counties with a per capita range of 50-100% and infection rates ranging from approximately 7.5-15%. Observing the counties within these clusters, it appears that infection rates tend to be higher when the Hispanic population is above 50%.
+
+In Figure 3.3.3, Cluster 2 contains counties with a per capita range of approximately 50-75% and an infection rate from 0-10%. Cluster 1 includes counties with a per capita range of 0-55% and infection rates spanning from 5% to above 15%. Compared to Figure 3.3.2, it seems that infection rates are lower in counties with a larger White population.
+
+In Figure 3.3.4, Cluster 2 includes counties with a per capita range of 0-0.3% and an infection rate of 0-10%, while Cluster 1 contains counties with a per capita range of 0-0.1% and infection rates from 5% to above 15%. This figure does not display any clear trends, as both clusters overlap, and counties with a small African-American population tend to have higher infection rates than counties with a larger African-American population.
+
+
+Now we are going to evaluate the clusters. The clusters will be evaluated using Silhouette coefficient
+
+```{r, echo=FALSE, results='asis', fig.width=8, fig.height=6}
+
+selected_features <- c("white_capita", "infection_rate")
+
+# Select the specified features from dataset
+data_subset <- dataset_scaled %>% select(all_of(selected_features))
+
+# Perform K-means clustering
+clustering_result <- kmeans(data_subset, centers = 2, nstart = 5)
+
+# Calculate silhouette values
+sil <- silhouette(clustering_result$cluster, dist(data_subset))
+
+# Calculate the overall average silhouette width
+overall_avg_sil_width <- mean(sil[, "sil_width"])
+#print(paste("Overall Average Silhouette Width:", round(overall_avg_sil_width, 4)))
+
+# Plot the silhouette plot
+feature_title <- paste(selected_features, collapse = " vs ")
+
+plot <- fviz_silhouette(sil, label = FALSE, print.summary = FALSE) +
+  labs(
+    title = paste("Cluster Silhouette Plot for", feature_title),
+    x = "Clusters",
+    y = "Silhouette Width (Avg)",
+    caption = "Figure 3.3.5"
+  ) +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
+
+# Display the plot
+plot
+
+```
+```{r, echo=FALSE, results='asis', fig.width=8, fig.height=6}
+# Define selected features
+selected_features <- c("hispanic_capita", "infection_rate")
+
+# Select the specified features from dataset
+data_subset <- dataset_scaled %>% select(all_of(selected_features))
+
+# Perform K-means clustering
+clustering_result <- kmeans(data_subset, centers = 2, nstart = 5)
+
+# Calculate silhouette values
+sil <- silhouette(clustering_result$cluster, dist(data_subset))
+
+# Calculate the overall average silhouette width
+overall_avg_sil_width <- mean(sil[, "sil_width"])
+#print(paste("Overall Average Silhouette Width:", round(overall_avg_sil_width, 4)))
+
+
+# Plot the silhouette plot
+feature_title <- paste(selected_features, collapse = " vs ")
+
+plot <- fviz_silhouette(sil, label = FALSE, print.summary = FALSE) +
+  labs(
+    title = paste("Cluster Silhouette Plot for", feature_title),
+    x = "Clusters",
+    y = "Silhouette Width (Avg)",
+    caption = "Figure 3.3.6"
+  ) +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
+
+# Display the plot
+plot
+```
+```{r, echo=FALSE, results='asis', fig.width=8, fig.height=6}
+selected_features <- c("black_capita", "infection_rate")
+
+# Select the specified features from dataset
+data_subset <- dataset_scaled %>% select(all_of(selected_features))
+
+# Perform K-means clustering
+clustering_result <- kmeans(data_subset, centers = 2, nstart = 5)
+
+# Calculate silhouette values
+sil <- silhouette(clustering_result$cluster, dist(data_subset))
+
+# Calculate the overall average silhouette width
+overall_avg_sil_width <- mean(sil[, "sil_width"])
+#print(paste("Overall Average Silhouette Width:", round(overall_avg_sil_width, 4)))
+
+
+# Plot the silhouette plot
+feature_title <- paste(selected_features, collapse = " vs ")
+
+plot <- fviz_silhouette(sil, label = FALSE, print.summary = FALSE) +
+  labs(
+    title = paste("Cluster Silhouette Plot for", feature_title),
+    x = "Clusters",
+    y = "Silhouette Width (Avg)",
+    caption = "Figure 3.3.7"
+  ) +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
+
+# Display the plot
+plot
+```
+Figures 3.3.5, 3.3.6, and 3.3.7 illustrate the clustering quality through average silhouette widths of 0.456, 0.5, and 0.413, respectively, all indicating well-separated groupings. While the silhouette scores differ slightly, each one reflects a reasonable degree of separation between clusters, with 0.5 in Figure 3.3.6 representing the strongest separation among the three. Despite minor variations, all three figures demonstrate that the clusters are sufficiently distinct and cohesive to be considered well-separated. This suggests that while there is a possibility of some counties being assigned to the incorrect group, the overall structure of the clusters remains distinct. 
+
+Now we shall measure if the groupings from  figures 3.3.2-4. There will only be two groups to represent the ground truth. They include the labels below:
+
+ * High Infection Rate, High Per Capita: `infection_rate` >= 5, `Per Capita` >= .50
+ * low Infection Rate, Low Per Capita: `infection_rate` <= 10, `Per Capita` < .50
+ 
+  
+Now we will compare the groupings using Entropy and the ARI score.
+
+```{r, echo=FALSE, warning=FALSE}
+
+# Creating subsets that contain each of the specific demographic groups and the ground truth labels defined above
+
+km_data_clustered_white <- kmeans_data %>%
+  mutate(status = case_when(
+    infection_rate >= 5 & white_capita >= 0.50 ~ "High infection rate, High Per Capita",
+    infection_rate <= 10 & white_capita < 0.50 ~ "Low infection rate, Low Per Capita",
+    TRUE ~ "N/a"
+  )) %>%
+  select(white_capita, infection_rate, status, cluster)
+
+# For hispanic capita data frame
+km_data_clustered_hispanic <- kmeans_data %>%
+  mutate(status = case_when(
+    infection_rate >= 5 & hispanic_capita >= 0.50 ~ "High infection rate, High Per Capita",
+    infection_rate <= 10 & hispanic_capita < 0.50 ~ "Low infection rate, Low Per Capita",
+    TRUE ~ "N/a"
+  )) %>%
+  select(hispanic_capita, infection_rate, status, cluster)
+
+# For black capita data frame
+km_data_clustered_black <- kmeans_data %>%
+  mutate(status = case_when(
+    infection_rate >= 5 & black_capita >= 0.50 ~ "High infection rate, High Per Capita",
+    infection_rate <= 10 & black_capita < 0.50 ~ "Low infection rate, Low Per Capita",
+    TRUE ~ "N/a"
+  )) %>%
+  select(black_capita, infection_rate, status, cluster)
+
+# function that calculates the entropy for each cluster
+calculate_entropy <- function(status_values) {
+  counts <- table(status_values)  # Count occurrences of each status
+  entropy(counts, method = "ML")  # Calculate entropy using maximum likelihood
+}
+
+# Calculates entropy for each cluster in km_data_clustered_white
+cluster_entropy_white <- km_data_clustered_white %>%
+  group_by(cluster) %>%
+  summarize(entropy = calculate_entropy(status))
+
+# Calculates entropy for each cluster in km_data_clustered_hispanic
+cluster_entropy_hispanic <- km_data_clustered_hispanic %>%
+  group_by(cluster) %>%
+  summarize(entropy = calculate_entropy(status))
+
+# Calculates entropy for each cluster in km_data_clustered_black
+cluster_entropy_black <- km_data_clustered_black %>%
+  group_by(cluster) %>%
+  summarize(entropy = calculate_entropy(status))
+
+# calculates the ARI for each demographic group
+ari_score_white <- adjustedRandIndex(as.numeric(factor(km_data_clustered_white$status)), as.numeric(km_data_clustered_white$cluster))
+ari_score_hispanic <- adjustedRandIndex(as.numeric(factor(km_data_clustered_hispanic$status)), as.numeric(km_data_clustered_hispanic$cluster))
+ari_score_black <- adjustedRandIndex(as.numeric(factor(km_data_clustered_black$status)), as.numeric(km_data_clustered_black$cluster))
+
+# Display ARI scores in a clean table
+ari_scores <- data.frame(
+  Group = c("White", "Hispanic", "Black"),
+  ARI_Score = c(ari_score_white, ari_score_hispanic, ari_score_black)
+)
+kable(ari_scores, col.names = c("Demographic Group", "ARI Score"), caption = "Adjusted Rand Index (ARI) Scores by Demographic Group")
+
+# Display entropy results in clean tables
+kable(cluster_entropy_white, col.names = c("Cluster", "Entropy"), caption = "Entropy for White Capita Clusters")
+kable(cluster_entropy_hispanic, col.names = c("Cluster", "Entropy"), caption = "Entropy for Hispanic Capita Clusters")
+kable(cluster_entropy_black, col.names = c("Cluster", "Entropy"), caption = "Entropy for Black Capita Clusters")
+```
+
+
+The ARI scores in Table 1 show moderate agreement between the predefined labels and the clusters for the Black and White capita groups. The Hispanic capita clusters, however, achieved a notably higher ARI score, suggesting that the KMeans-selected clusters align more closely with the intended labels, indicating a better fit with the defined ground truth.
+
+For the entropy scores, the White demographic clusters displayed high entropy values, indicating less cohesion within the clusters. This suggests that the conditions used for labeling did not align closely with the KMeans clusters for this group. In the Hispanic demographic, Cluster 1 showed low entropy, suggesting good cohesion, while Cluster 2 exhibited higher entropy, reflecting less cohesion. This pattern implies that Cluster 1 closely matched the labeled conditions, while Cluster 2 was more loosely associated. The Black demographic clusters showed a similar trend to the Hispanic clusters: Cluster 1 had good cohesion with the labels, while Cluster 2 displayed a more neutral match.
+
+ The objective of this cluster analysis was to determine whether counties with a significant proportion of a demographic group also exhibited higher infection rates. Among the three demographic groups, the Hispanic demographic showed the clearest fit with this hypothesis. The entropy score for Cluster 1 within the Hispanic group suggested strong cohesion with the assigned label, which represented counties with infection rates below 10% and Hispanic per capita below 50%. This indicates that counties with lower Hispanic populations had lower infection rates. Although Cluster 2 in this group had a higher entropy score, suggesting less alignment with the "High infection rate, High Per Capita" label, the overall ARI score for the Hispanic clusters showed a strong match with the predefined labels. Thus, we conclude that counties with a larger Hispanic population are associated with higher infection rates, aligning with our hypothesis.
+
+```{r, echo=FALSE, warning=FALSE}
+hispanic_cluster2 <- kmeans_data %>%
+  filter(cluster == 1 & hispanic_capita >= .50)
+
+# Plot Cluster 2 with county names as labels
+ggplot(hispanic_cluster2, aes(x = hispanic_capita, y = infection_rate)) +
+  geom_point(color = "red") +
+  geom_text(aes(label = county_name), hjust = 1, vjust = 1, size = 3) +
+  labs(
+    title = "Counties in Cluster 2 for Hispanic Demographic",
+    x = "Hispanic Population per Capita",
+    y = "Infection Rate",
+    caption = "Figure 3.3.8"
+  ) +
+  theme_minimal()
+
+```
+
+
+We recommend that counties like Maverick County, Deaf Smith County, and other counties shown in Figure 3.3.8 receive additional healthcare support to address higher infection rates. These counties all have a Hispanic population at or above 50%, and, as established earlier, infection rates tend to be higher in areas with a large Hispanic population. Providing these communities with increased medical resources would help in treating those affected by COVID. We also recommend increasing efforts to educate residents on effective methods to prevent the spread of the virus.
+
+
+### 3.4 Cluster Analysis 4 - Social Distancing and Spread of COVID
+
+One of the key questions we asked in the first report was whether social distancing measures were effective in slowing the spread of COVID. To determine this, we will first look at how COVID progressed in the timeframe right after social distancing measures were introduced in late March 2020.
+
+First we will look at a geographic plot of case numbers and deaths per capita across the state of Texas during the months of April-June 2020.
+
+```{r, echo=FALSE, out.width="100%", fig.height=14, fig.width=12}
+counties_polygon <- as_tibble(map_data("county"))
+counties_polygon_TX <- counties_polygon %>% dplyr::filter(region == "texas") %>% 
+  rename(c(county = subregion)) 
+
+cases_TX <- result %>%
+  mutate(across(where(is.character), factor)) %>%
+  mutate(county = county_name %>% str_to_lower() %>% str_replace('\\s+county\\s*$', ''))  
+
+counties_polygon_TX <- right_join(counties_polygon_TX, cases_TX, by = join_by(county))
+confirmed_cases <- ggplot(counties_polygon_TX, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = cases_per_1000)) +
+  coord_quickmap() +
+  scale_fill_continuous(type = "viridis") +
+  labs(title = "Texas confirmed cases by county April-June 2020") +
+  guides(fill=guide_legend(title="Cases per Capita April-June"))
+
+deaths <- ggplot(counties_polygon_TX, aes(long, lat)) + 
+  geom_polygon(aes(group = group, fill = deaths_per_1000)) +
+  coord_quickmap() +
+  scale_fill_continuous(type = "viridis") +
+  labs(title = "Texas death rates by county April-June 2020",caption="Figure 3.4.1")+
+  guides(fill=guide_legend(title="Deaths per Capita April-June"))
+
+combined_plot = confirmed_cases / deaths
+combined_plot
+```
+We can see that cases per capita grew slowly across most of Texas after social distancing measure were introduced. However there are areas in the panhandle as well as East Texas that show an increased number of cases in the period right after social distancing was introduced.
+
+Looking at the deaths plot, we can see that Panhandle and East Texas suffered the most deaths per capita in the months of April-June 2020.
+
+
+```{r, echo=FALSE, out.width="100%", fig.height=14, fig.width=12}
+
+
+  
+transit_plot <- ggplot(transit_df, aes(x = min_transit, y = cases_per_1000, color = sub_region_2)) +
+  geom_point(size = 2) +  # Use points for scatter plot
+  labs(x = "Min Transit", y = "Cases April-June per Capita", title = "Plot of Transit vs Difference in Cases Per Capita by County") +
+  theme_minimal() +
+    theme(legend.position = "none")  # Hide legend
+
+
+grocery_plot <- ggplot(grocery_df, aes(x = min_grocery, y = cases_per_1000, color = sub_region_2)) +
+  geom_point(size = 2) +  # Use points for scatter plot
+  labs(x = "Min Grocery", y = "Cases April-June per Capita", title = "Plot of Grocery vs Difference in Cases Per Capita by County",caption="Figure 3.4.2") +
+  theme_minimal() +
+    theme(legend.position = "none")  # Hide legend
+
+
+
+retail_plot <- ggplot(retail_df, aes(x = min_retail, y = cases_per_1000, color = sub_region_2)) +
+  geom_point(size = 2) +  # Use points for scatter plot
+  labs(x = "Min Retail", y = "Cases April-June per Capita", title = "Plot of Retail vs Difference in Cases Per Capita by County") +
+  theme_minimal() +
+    theme(legend.position = "none")  # Hide legend
+
+combined_plot = (transit_plot / retail_plot / grocery_plot)
+combined_plot
+
+```
+We can see the distribution of counties that decreased transit have a greater variance than those that increased or decreased grocery or retail. This is likely due to few public transit options available in the state of Texas. We will focus our clustering only on grocery and retail going forwards.
+
+Using DBScan we investigate whether any clusters can be found in counties that social distance more than other counties.
+
+
+```{r, echo=FALSE,warning=FALSE}
+library(dbscan)
+
+## I use this till tidyverse implements a scale function
+scale_numeric <- function(x) {
+  x |> mutate(across(where(is.numeric), 
+                     function(y) (y - mean(y, na.rm = TRUE)) / sd(y, na.rm = TRUE)))
+}
+
+retail_scaled <- scale_numeric(retail_df) |>
+  select(min_retail,cases_per_1000) 
+
+grocery_scaled <- scale_numeric(grocery_df) |>
+  select(min_grocery,cases_per_1000)
+
+kNNdistplot(grocery_scaled, minPts = 3)
+abline(h = 0.5, col = "red")
+
+
+
+
+db <- dbscan::dbscan(grocery_scaled, eps = 0.5, minPts = 3)
+ggplot(grocery_df |> add_column(cluster = factor(db$cluster)),
+  aes(min_grocery, cases_per_1000, color = cluster)) + geom_point() +
+  labs(x = "Min Grocery", y = "Covid Cases in April-June Per Capita", title = "Plot of Grocery vs Covid Cases in April-June Per Capita by County", caption="Figure 3.4.3") +
+  geom_text_repel(aes(label = sub_region_2)) 
+```
+Here we find that DBScan has allocated most counties into a single cluster, which at their greatest level of social distancing varied from 0% change in grocery to 60% decrease in grocery. While this clustering suggests that decreasing grocery spending does not have a large impact on the spread of covid, we do see the beginning of clusters in the counties that did less social distancing with regard to grocery spending. We see outliers on the right side of the chart, suggesting that some counties that did less social distancing may have had greater spread of COVID.
+
+```{r, echo=FALSE,warning=FALSE}
+
+kNNdistplot(retail_scaled, minPts = 2)
+abline(h = 0.5, col = "red")
+
+
+db <- dbscan::dbscan(retail_scaled, eps = 0.5, minPts = 2)
+ggplot(retail_df |> add_column(cluster = factor(db$cluster)),
+  aes(min_retail, cases_per_1000, color = cluster)) + geom_point()+
+  labs(x = "Min Retail", y = "Covid Cases in April-June Per Capita", title = "Plot of Retail vs Covid Cases in April-June Per Capita by County", caption="Figure 3.4.4") +
+    geom_text_repel(aes(label = sub_region_2)) 
+
+
+```
+With regard to retail spending, we see the same trend. A single big cluster is found for a variety of changes in retail spending. This suggests that increased social distancing may not be effective in further reducing the spread of covid, or rather, a certain minimum amount of social distancing is sufficient to slow the spread. We do not have data on counties that completely ignored the social distancing mandate, and whether or not they would have had much higher rates of COVID spreading. While DBScan generated one large cluster, counties that did less social distancing had higher rates of COVID spread, even if not to the extent as some of the outlier counties.
+```{r}
+d <- dist(retail_scaled)
+fviz_silhouette(silhouette(db$cluster, d))+ labs(title="Visual Analysis for Cluster Tendency Assessment (VAT)", caption="Figure 3.4.5")
+```
+The silhouette plot shows that most points do fit inside the large cluster generated by DBScan. The nature of DBScan is to cluster high density points together, and mark points in low density areas as outliers. While it would be nice to separate the large cluster into further clusters, the high density nature of those points makes it difficult for DBScan to separate them. When doing spectral clustering(exceptional work), we can see subclusters of these large clusters DBScan generates.
+
+```{r, echo=FALSE, warning=FALSE}
+retail_df <- retail_df |> add_column(cluster = factor(db$cluster))
+retail_df <- retail_df %>%
+  mutate(ground_truth_clusters = case_when(
+    min_retail < -60 & cases_per_1000 >= 10 ~ "High Social Distancing, High Cases",
+    min_retail < -60 & cases_per_1000 <= 10 ~ "High Social Distancing, Low Cases",
+    min_retail >= -60 & cases_per_1000 >= 10 ~ "Low Social Distancing, High Cases",
+    min_retail >= -60 & cases_per_1000 < 10 ~ "Low Social Distancing, Low Cases",
+    TRUE ~ "Uncategorized",
+  ))
+
+ari_score <- adjustedRandIndex(as.numeric(factor(retail_df$ground_truth_clusters)), as.numeric(retail_df$cluster))
+
+```
+We get an ARI score of 0.23 which suggests the generated clusters agree slightly with the expected clusters. The data may not lend itself well to clustering, especially in a density based approach, as we have the majority of Texas counties inside a dense area in the data.
+
+Concering the expected clusters, the ground truth for this was contrived, as the mean decrease in total visitors to the retail sector was -51%. The mean cases per 1000 for the two months post-social distancing was about 2. This suggests that most Texas counties did do social distancing, and COVID spread was limited right after social distancing. It becomes difficult to determine when the population began to ignore social distancing guidelines, and to measure whether noncompliance of social distancing resulted in an increased spread of COVID. For now we can say that social distancing did not hurt in any way, and that outlier counties where there was large COVID spread were also counties that did lesser amounts of social distancing.
+
+## 4.0 Recommendations (Evaluation)
+
+We recommend that Texas policymakers provide funding for additional healthcare resources in Sabine County, Red River County, Foard County, and other counties represented in Figure 3.1.4. These communities have older populations, making them more susceptible to severe COVID-19 symptoms. Increasing healthcare resources in these communities could help hospitals manage COVID-19 cases more effectively, reducing case severity and potentially saving lives.
+
+We recommend that Texas policymakers provide financial aid and welfare programs in Childress County, Hale County, Lubbock County, and other counties represented in Figure 3.2.5. These counties faced challenges in effectively mitigating the spread of COVID-19 due to lower median incomes. Providing additional resources could alleviate financial burdens in these communities and strengthen their ability to control future pandemics.
+
+We recommend that counties like Maverick County, Deaf Smith County, and other counties shown in Figure 3.4.8 receive additional healthcare support to address higher infection rates. These counties all have a Hispanic population at or above 50%, and, as established earlier, infection rates tend to be higher in areas with a large Hispanic population. Providing these communities with increased medical resources would help in treating those affected by COVID. We also recommend increasing efforts to educate residents on effective methods to prevent the spread of the virus.
+
+We recommend that Texas does further study into whether more social distancing can reduce case numbers. Social distancing at a moderate level, where grocery decreased a moderate amount seemed to reduce the likelihood of covid spreading. In the spectral clustering, we see that the the highest spread of covid occurred in counties that did the least social distancing. There are other counties that also did minimal social distancing, but did not experience any covid spread, but none of the counties that did more extreme social distancing had higher spread of covid.
+
+There may be other mandates that are far more effective in reducing the spread of covid such as mandatory mask wearing and other measures such as maintaining a physical distance between people when shopping or on transit. In any case, it is safer to recommend social distancing, even if some counties did not need to, as it appears to have a preventative effect.
 
 
 
