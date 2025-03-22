@@ -1,3 +1,5 @@
+## Download the data from canvas before running the lab 
+
 TODOS: 
 
 1. reformat lab2/add more charts etc.
