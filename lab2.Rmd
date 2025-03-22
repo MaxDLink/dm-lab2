@@ -1,7 +1,7 @@
 ---
 Title: Data Mining Lab 2
 Authors: Max Link, Logan Lu, Jadon Klipsch
-Date: "2025-02-21"
+Date: "2025-03-21"
 Description: In this project, we will focus on clustering
 output:
   pdf_document: null
@@ -26,7 +26,7 @@ library(ggrepel)
 
 ## 1.0 Problem Statement 
 
-We will address the following key questions to aid Texas policymakers: 
+We will address the following key questions to aid Johnson and Johnson: 
 
 
 * Does social distancing reduce confirmed cases? 
@@ -128,7 +128,9 @@ We will analyze the following variables:
 
 All ratio values will be standardized to zero mean
 
-Cluster algorithms will use Euclidean distance measurements. Euclidean measurement is ideal for scalar values. We do not anticipate high variance or outliers
+Cluster algorithms will use Euclidean distance measurements. Euclidean measurement is ideal for scalar values
+
+We do not anticipate high variance or outliers
 
 ### 2.2 Data Preprocessing
 
@@ -921,7 +923,7 @@ ari_score <- adjustedRandIndex(as.numeric(factor(retail_df$ground_truth_clusters
 ```
 We get an ARI score of 0.23 which suggests the generated clusters agree slightly with the expected clusters. The data may not lend itself well to clustering, especially in a density based approach, as we have the majority of Texas counties inside a dense area in the data.
 
-Concering the expected clusters, the ground truth for this was contrived, as the mean decrease in total visitors to the retail sector was -51%. The mean cases per 1000 for the two months post-social distancing was about 2. This suggests that most Texas counties did do social distancing, and COVID spread was limited right after social distancing. It becomes difficult to determine when the population began to ignore social distancing guidelines, and to measure whether noncompliance of social distancing resulted in an increased spread of COVID. For now we can say that social distancing did not hurt in any way, and that outlier counties where there was large COVID spread were also counties that did lesser amounts of social distancing.
+Concerning the expected clusters, the ground truth for this was contrived, as the mean decrease in total visitors to the retail sector was -51%. The mean cases per 1000 for the two months post-social distancing was about 2. This suggests that most Texas counties did do social distancing, and COVID spread was limited right after social distancing. It becomes difficult to determine when the population began to ignore social distancing guidelines, and to measure whether noncompliance of social distancing resulted in an increased spread of COVID. For now we can say that social distancing did not hurt in any way, and that outlier counties where there was large COVID spread were also counties that did lesser amounts of social distancing.
 
 ## 4.0 Recommendations (Evaluation)
 
