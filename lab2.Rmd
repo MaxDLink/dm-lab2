@@ -4,15 +4,16 @@ Authors: Max Link, Logan Lu, Jadon Klipsch
 Date: "2025-03-21"
 Description: In this project, we will focus on clustering
 output:
-  pdf_document: null
-  latex_engine: xelatex
   html_document:
     df_print: paged
+  latex_engine: xelatex
+  pdf_document: null
 ---
   
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+options(repos=c(CRAN = "https://cloud.r-project.org"))
 
 # Load required libraries!!
 library(dplyr)      # For data manipulation
