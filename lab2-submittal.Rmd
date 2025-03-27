@@ -1,0 +1,290 @@
+---
+Title: Data Mining Lab 2
+Authors: Max Link, Logan Lu, Jadon Klipsch
+Date: "2025-03-21"
+Description: In this project, we will focus on clustering
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(repos=c(CRAN = "https://cloud.r-project.org"))
+
+# Load required libraries!!
+library(dplyr)      # For data manipulation
+library(ggplot2)    # For visualizations
+library(tidyr)      # For cleaning data
+install.packages('ggrepel')
+library(ggrepel)
+
+
+```
+
+
+## 1.0 Problem Statement [0]
+
+We will address the following key questions to aid Johnson and Johnson: 
+
+
+
+1.	What are the counties in Texas with top ten infection rates? What are the measures that could be taken to reduce and tackle the infection rate? 
+
+2.	How does median age impact infection and death rates? And what interventions could be taken to mitigate the risks for people with certain age groups?
+
+3.	What key socioeconomic factors are most strongly associated with infection and death rates, and how can they inform targeted healthcare interventions?
+
+
+## 2.0 Data Preparation [30]
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+# Install all required packages (regardless of whether already installed)
+install.packages(c("tidyverse", "factoextra", "cluster", "patchwork", "tibble", "ggrepel",
+                   "mclust", "mcclust", "fpc", "seriation", "apcluster", "dbscan",
+                   "entropy", "maps", "kernlab", "skimr", "readr", "dplyr", 
+                   "tidyr", "knitr", "ggplot2"))
+                   
+```           
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+
+
+# Load libraries
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(knitr)
+library(tibble)
+library(mclust)
+library(mcclust)
+library(ggplot2)
+library(ggrepel)
+library(cluster)
+library(patchwork)
+library(factoextra)
+library(fpc)
+library(seriation)
+library(apcluster)
+library(dbscan)
+library(entropy)
+library(maps)
+library(skimr)
+
+
+```
+
+We can read in tx_data_with_gr.csv to get our same object from lab 1. 
+
+```{r}
+
+dataset <- read.csv("tx_data_with_gr.csv")
+
+print(dataset)
+```
+
+
+
+
+1.	What are the counties in Texas with top ten infection rates? What are the measures that could be taken to reduce and tackle the infection rate? 
+
+infection rate
+
+county 
+
+
+
+2.	How does median age impact infection and death rates? And what interventions could be taken to mitigate the risks for people with certain age groups?
+
+3.	What key socioeconomic factors are most strongly associated with infection and death rates, and how can they inform targeted healthcare interventions?
+
+
+We will cluster the following objects:
+
+
+confirmed_cases (ratio) - clustering this variable will help us answer question 1 - 3 
+
+median_age (ratio) - clustering this variable will answer question 2 
+
+median_income (ratio) - clustering this variable will answer the 3rd question
+
+total_pop (ratio) - clustering this variable will help us answer question 1 - 3 
+
+rate_of_growth_first_30_days (ratio) - clustering this variable will help us answer question 1 
+
+infection_rate (ratio) - clustering this variable will help answer question 1 - 3  
+
+death_rate (ratio) - clustering this variable will help answer questions 1 - 3 
+
+deaths(ratio) - clustering this variable will help answer questions 1 - 3 
+
+
+Confirmed_Cases, total_pop, and median_income have larger numeric ranges than infection_rate and death_rate, so we need to standardize our variables 
+
+We can use R's scale() function, which uses Z-score normalization
+
+In Z-score normalization, values below the mean become negative and values above the mean become positive
+
+```{r}
+
+ds_scaled <- as.data.frame(scale(dataset[, c("confirmed_cases", "deaths", "median_age", "median_income", 
+                          "total_pop", "rate_of_growth_first_30_days", 
+                          "infection_rate", "death_rate")]))
+
+# Add county_name back to the scaled dataset
+ds_scaled$county_name <- dataset$county_name
+
+
+```
+
+
+We are using euclidian distance for our distance/similarity measurement 
+
+## 3.0 Modeling [60] 
+
+
+### 3.1 Question 1 - Infection Rate and County Clustering 
+
+
+1. What are the counties in Texas with top ten infection rates? What are the measures that could be taken to reduce and tackle the infection rate? 
+
+```{r}
+# top ten counties by infection rate 
+
+top10_infection <- ds_scaled[order(-ds_scaled$infection_rate), c("county_name", "infection_rate")][1:10, ]
+print(top10_infection)
+
+
+
+```
+
+```{r}
+# Subset the top 10 counties by infection rate
+top10_infection <- ds_scaled[order(-ds_scaled$infection_rate), ][1:10, ]
+
+# Select the variables for clustering
+cluster_data <- top10_infection[, c("total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate")]
+
+# Verify the data
+# print(cluster_data)
+
+```
+
+We can make an elbow plot to determine the number of clusters that are appropriate 
+
+```{r}
+# Load required libraries
+library(ggplot2)
+
+# Calculate WSS for different numbers of clusters (k from 1 to 8)
+set.seed(123)  # For reproducibility
+wss <- sapply(1:8, function(k) {
+  kmeans(cluster_data, centers = k, nstart = 10)$tot.withinss
+})
+
+# Create a data frame for plotting
+elbow_data <- data.frame(
+  k = 1:8,
+  WSS = wss
+)
+
+# Plot the elbow graph
+ggplot(elbow_data, aes(x = k, y = WSS)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Elbow Plot for Optimal Number of Clusters",
+       x = "Number of Clusters (k)",
+       y = "Within-Cluster Sum of Squares (WSS)") +
+  theme_minimal() +
+  scale_x_continuous(breaks = 1:8)
+
+```
+
+
+```{r}
+
+library(cluster)
+
+# Calculate silhouette scores for different k
+sil_scores <- sapply(2:8, function(k) {
+  km <- kmeans(cluster_data, centers = k, nstart = 10)
+  ss <- silhouette(km$cluster, dist(cluster_data))
+  mean(ss[, 3])  # Average silhouette score
+})
+
+# Create a data frame for plotting
+sil_data <- data.frame(
+  k = 2:8,
+  Silhouette = sil_scores
+)
+
+# Plot the silhouette scores
+ggplot(sil_data, aes(x = k, y = Silhouette)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Silhouette Plot for Optimal Number of Clusters",
+       x = "Number of Clusters (k)",
+       y = "Average Silhouette Score") +
+  theme_minimal() +
+  scale_x_continuous(breaks = 2:8)
+```
+
+The elbow plot suggests K = 3. The silhouette plot suggests K = 2. K = 3 can provide more tailored insights in our investigation because it enables better grouping for our county data (cities, rural areas, or both). 
+
+
+We are looking at the top ten counties, which is a small sample of counties. K-means is appropriate for a small sample of counties because it is computationally efficient and is best used when the number of clusters is determined with an elbow or silhouette plot. 
+
+```{r}
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Perform k-means clustering with 3 clusters
+kmeans_result <- kmeans(cluster_data, centers = 3)
+
+# Add cluster labels to the top10_infection dataset
+top10_infection$cluster <- kmeans_result$cluster
+
+# Display the results with county names and cluster assignments
+result <- top10_infection[, c("county_name", "total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "cluster")]
+# print(result)
+
+```
+
+
+We can visualize our cluster results with ggplot 
+
+```{r}
+# Load required libraries
+library(ggplot2)
+library(ggrepel)  # For better label placement
+
+# Step 1: Perform PCA on the clustering variables
+# Extract the variables used for clustering (already scaled)
+cluster_data <- top10_infection[, c("total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate")]
+
+# Run PCA
+pca_result <- prcomp(cluster_data, scale. = FALSE)  # scale. = FALSE since data is already scaled
+
+# Extract the first two principal components
+pca_data <- as.data.frame(pca_result$x[, 1:2])  # PC1 and PC2
+colnames(pca_data) <- c("PC1", "PC2")
+
+# Add county names and cluster labels to the PCA data
+pca_data$county_name <- top10_infection$county_name
+pca_data$cluster <- as.factor(top10_infection$cluster)
+
+# Step 2: Create the ggplot cluster plot
+ggplot(pca_data, aes(x = PC1, y = PC2, color = cluster, label = county_name)) +
+  geom_point(size = 4) +  # Plot points for each county
+  geom_text_repel(size = 3, box.padding = 0.5, max.overlaps = Inf) +  # Add county names with ggrepel to avoid overlap
+  scale_color_manual(values = c("red", "blue", "green")) +  # Color clusters
+  labs(title = "Clustering of Top 10 Counties by Infection Rate",
+       x = "Principal Component 1",
+       y = "Principal Component 2",
+       color = "Cluster") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+```
+
+
