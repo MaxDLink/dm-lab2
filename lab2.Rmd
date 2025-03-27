@@ -31,12 +31,13 @@ library(ggrepel)
 We will address the following key questions to aid Johnson and Johnson: 
 
 
-* Does social distancing reduce confirmed cases? 
 
-* Should we build more hospitals around dense or older populations to better manage healthcare re-
-sources?
+1.	What are the counties in Texas with top ten infection rates? What are the measures that could be taken to reduce and tackle the infection rate? 
 
-* Could social welfare programs be expanded to protect vulnerable communities? 
+2.	How does median age impact infection and death rates? And what interventions could be taken to mitigate the risks for people with certain age groups?
+
+3.	What key demographic and socioeconomic factors are most strongly associated with infection and death rates, and how can they inform targeted healthcare interventions?
+
 
 ## Install Required Packages 
 
