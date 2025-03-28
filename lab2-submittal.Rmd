@@ -272,6 +272,7 @@ kmeans_result <- kmeans(cluster_data, centers = 3)
 ds_scaled$cluster <- kmeans_result$cluster
 
 # Display the results with county names and cluster assignments
+# TODO - is this a repeat of line 192? 
 result <- ds_scaled[, c("county_name", "total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "cluster", "median_age", "death_rate")]
 # print(result)
 
