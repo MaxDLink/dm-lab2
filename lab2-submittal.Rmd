@@ -15,7 +15,8 @@ library(dplyr)      # For data manipulation
 library(ggplot2)    # For visualizations
 library(tidyr)      # For cleaning data
 install.packages('ggrepel')
-library(ggrepel)
+library(ggrepel) 
+install.packages("xfun")
 
 
 ```
