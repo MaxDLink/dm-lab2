@@ -6,6 +6,8 @@ Description: In this project, we will focus on clustering
 ---
   
 ```{r setup, include=FALSE}
+install.packages("xfun")
+
 knitr::opts_chunk$set(echo = TRUE)
 
 options(repos=c(CRAN = "https://cloud.r-project.org"))
@@ -16,7 +18,7 @@ library(ggplot2)    # For visualizations
 library(tidyr)      # For cleaning data
 install.packages('ggrepel')
 library(ggrepel) 
-install.packages("xfun")
+
 
 
 ```
@@ -38,11 +40,33 @@ We will address the following key questions to aid Johnson and Johnson:
 ## 2.0 Data Preparation [30]
 
 ```{r, results='hide', message=FALSE, warning=FALSE}
-# Install all required packages (regardless of whether already installed)
-install.packages(c("tidyverse", "factoextra", "cluster", "patchwork", "tibble", "ggrepel",
-                   "mclust", "mcclust", "fpc", "seriation", "apcluster", "dbscan",
-                   "entropy", "maps", "kernlab", "skimr", "readr", "dplyr", 
-                   "tidyr", "knitr", "ggplot2"))
+# add packages to install here
+pkgs <- c("tidyverse", "factoextra", "cluster", "patchwork", "tibble", "ggrepel",
+          "mclust", "mcclust", "fpc", "seriation", "apcluster", "dbscan", "entropy", "maps", "kernlab", "skimr")
+pkgs_install <- pkgs[!(pkgs %in% installed.packages()[,"Package"])]
+if(length(pkgs_install)) install.packages(pkgs_install)
+
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(readr))
+suppressPackageStartupMessages(library(dplyr))
+suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages(library(knitr))
+suppressPackageStartupMessages(library(tibble))
+suppressPackageStartupMessages(library(mclust))
+suppressPackageStartupMessages(library(mcclust))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(ggrepel))
+suppressPackageStartupMessages(library(cluster))
+suppressPackageStartupMessages(library(patchwork))
+suppressPackageStartupMessages(library(factoextra))
+suppressPackageStartupMessages(library(fpc))
+suppressPackageStartupMessages(library(seriation))
+suppressPackageStartupMessages(library(apcluster))
+suppressPackageStartupMessages(library(dbscan))
+suppressPackageStartupMessages(library(entropy))
+suppressPackageStartupMessages(library(maps))
+suppressPackageStartupMessages(library(skimr))
+
                    
 ```           
 
@@ -127,11 +151,13 @@ In Z-score normalization, values below the mean become negative and values above
 
 ```{r}
 
-ds_scaled <- as.data.frame(scale(dataset[, c("confirmed_cases", "deaths", "median_age", "median_income", 
+ds_scaled <- as.data.frame(scale(dataset[, c("confirmed_cases", "deaths", "median_income", 
                           "total_pop", "rate_of_growth_first_30_days", 
-                          "infection_rate", "death_rate")]))
+                          "infection_rate")]))
 
 # Add county_name back to the scaled dataset
+ds_scaled$death_rate <- dataset$death_rate
+ds_scaled$median_age <- dataset$median_age
 ds_scaled$county_name <- dataset$county_name
 
 
@@ -163,7 +189,7 @@ print(top10_infection)
 top10_infection <- ds_scaled[order(-ds_scaled$infection_rate), ][1:10, ]
 
 # Select the variables for clustering
-cluster_data <- top10_infection[, c("total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate")]
+cluster_data <- ds_scaled[, c("total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "median_age", "death_rate")]
 
 # Verify the data
 # print(cluster_data)
@@ -243,10 +269,10 @@ set.seed(123)
 kmeans_result <- kmeans(cluster_data, centers = 3)
 
 # Add cluster labels to the top10_infection dataset
-top10_infection$cluster <- kmeans_result$cluster
+ds_scaled$cluster <- kmeans_result$cluster
 
 # Display the results with county names and cluster assignments
-result <- top10_infection[, c("county_name", "total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "cluster")]
+result <- ds_scaled[, c("county_name", "total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "cluster", "median_age", "death_rate")]
 # print(result)
 
 ```
@@ -255,36 +281,11 @@ result <- top10_infection[, c("county_name", "total_pop", "rate_of_growth_first_
 We can visualize our cluster results with ggplot 
 
 ```{r}
-# Load required libraries
-library(ggplot2)
-library(ggrepel)  # For better label placement
-
-# Step 1: Perform PCA on the clustering variables
-# Extract the variables used for clustering (already scaled)
-cluster_data <- top10_infection[, c("total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate")]
-
-# Run PCA
-pca_result <- prcomp(cluster_data, scale. = FALSE)  # scale. = FALSE since data is already scaled
-
-# Extract the first two principal components
-pca_data <- as.data.frame(pca_result$x[, 1:2])  # PC1 and PC2
-colnames(pca_data) <- c("PC1", "PC2")
-
-# Add county names and cluster labels to the PCA data
-pca_data$county_name <- top10_infection$county_name
-pca_data$cluster <- as.factor(top10_infection$cluster)
-
-# Step 2: Create the ggplot cluster plot
-ggplot(pca_data, aes(x = PC1, y = PC2, color = cluster, label = county_name)) +
-  geom_point(size = 4) +  # Plot points for each county
-  geom_text_repel(size = 3, box.padding = 0.5, max.overlaps = Inf) +  # Add county names with ggrepel to avoid overlap
-  scale_color_manual(values = c("red", "blue", "green")) +  # Color clusters
-  labs(title = "Clustering of Top 10 Counties by Infection Rate",
-       x = "Principal Component 1",
-       y = "Principal Component 2",
-       color = "Cluster") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
+ggplot(result, aes(x = median_age, y = death_rate)) +
+  geom_point(aes(color = factor(cluster))) +
+  labs(title = "K Means Clustering of infection rate in Texas Counties", color = "Cluster", x = "median age", y = "Death Rate", caption="Figure 3.1.2") +
+  theme(plot.caption = element_text(hjust=0, size=rel(0.8))) +
+  theme_minimal()
 
 ```
 
