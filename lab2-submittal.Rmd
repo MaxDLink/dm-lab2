@@ -30,11 +30,17 @@ We will address the following key questions to aid Johnson and Johnson:
 
 
 
-1.	What are the counties in Texas with top ten infection rates? What are the measures that could be taken to reduce and tackle the infection rate? 
+1.	How does the total population affect infection rate? What are the measures that could be taken to reduce and tackle the infection rate?
+
+- Low population counties have variance in death rate 
+
+- Low population counties have higher infection rates because they may not have adequate medical care 
 
 2.	How does median age impact infection and death rates? And what interventions could be taken to mitigate the risks for people with certain age groups?
 
-3.	What key socioeconomic factors are most strongly associated with infection and death rates, and how can they inform targeted healthcare interventions?
+
+
+3.	How does the socioeconomic factor median income affect infection and death rates, and how can median income inform targeted healthcare interventions?
 
 
 ## 2.0 Data Preparation [30]
@@ -110,17 +116,12 @@ print(dataset)
 
 
 
-1.	What are the counties in Texas with top ten infection rates? What are the measures that could be taken to reduce and tackle the infection rate? 
-
-infection rate
-
-county 
-
-
+1.	How does the total population affect infection rate? What are the measures that could be taken to reduce and tackle the infection rate?
 
 2.	How does median age impact infection and death rates? And what interventions could be taken to mitigate the risks for people with certain age groups?
 
-3.	What key socioeconomic factors are most strongly associated with infection and death rates, and how can they inform targeted healthcare interventions?
+3.	How does median income affect infection and death rates, and how can median income inform targeted healthcare interventions?
+
 
 
 We will cluster the following objects:
@@ -152,10 +153,11 @@ In Z-score normalization, values below the mean become negative and values above
 ```{r}
 
 ds_scaled <- as.data.frame(scale(dataset[, c("confirmed_cases", "deaths", "median_income", 
-                          "total_pop", "rate_of_growth_first_30_days", 
-                          "infection_rate")]))
+                         "rate_of_growth_first_30_days")]))
 
 # Add county_name back to the scaled dataset
+ds_scaled$infection_rate <- dataset$infection_rate
+ds_scaled$total_pop <- dataset$total_pop
 ds_scaled$death_rate <- dataset$death_rate
 ds_scaled$median_age <- dataset$median_age
 ds_scaled$county_name <- dataset$county_name
@@ -172,7 +174,7 @@ We are using euclidian distance for our distance/similarity measurement
 ### 3.1 Question 1 - Infection Rate and County Clustering 
 
 
-1. What are the counties in Texas with top ten infection rates? What are the measures that could be taken to reduce and tackle the infection rate? 
+1.	How does the total population affect infection rate? What are the measures that could be taken to reduce and tackle the infection rate?
 
 ```{r}
 # top ten counties by infection rate 
@@ -184,14 +186,13 @@ print(top10_infection)
 
 ```
 
-```{r}
-# Subset the top 10 counties by infection rate
-top10_infection <- ds_scaled[order(-ds_scaled$infection_rate), ][1:10, ]
+These are the counties with top ten infection rates. We cannot cluster such a few amount of counties and get a useful clusters, so we will look at all counties in Texas for our clusters. 
 
+```{r}
 # Select the variables for clustering
 # cluster_data <- ds_scaled[, c("total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "median_age", "death_rate")]
 
-cluster_data <- ds_scaled[, c("median_age", "infection_rate")]
+cluster_data <- ds_scaled[, c("total_pop", "infection_rate")]
 
 # Verify the data
 # print(cluster_data)
@@ -228,6 +229,7 @@ ggplot(elbow_data, aes(x = k, y = WSS)) +
 
 ```
 
+Our elbow plot shows that K = 4 is optimal. Lets also make a silhouette plot to double check 
 
 ```{r}
 
@@ -257,25 +259,27 @@ ggplot(sil_data, aes(x = k, y = Silhouette)) +
   scale_x_continuous(breaks = 2:8)
 ```
 
-The elbow plot suggests K = 3. The silhouette plot suggests K = 2. K = 3 can provide more tailored insights in our investigation because it enables better grouping for our county data (cities, rural areas, or both). 
+The silhouette plot suggests K = 2. K = 4 can provide more tailored insights in our investigation because it enables better grouping for our county data (cities, rural areas, or both). 
 
 
-We are looking at the top ten counties, which is a small sample of counties. K-means is appropriate for a small sample of counties because it is computationally efficient and is best used when the number of clusters is determined with an elbow or silhouette plot. 
+We are looking at Texas counties. K-means is appropriate for a small sample of counties because it is computationally efficient and is best used when the number of clusters is determined with an elbow or silhouette plot. 
 
 ```{r}
 
 # Set seed for reproducibility
 set.seed(123)
 
-# Perform k-means clustering with 3 clusters
-kmeans_result <- kmeans(cluster_data, centers = 3)
+# Perform k-means clustering with 4 clusters
+kmeans_result <- kmeans(cluster_data, centers = 4)
 
 # Add cluster labels to the top10_infection dataset
 ds_scaled$cluster <- kmeans_result$cluster
 
 # Display the results with county names and cluster assignments
 # TODO - is this a repeat of line 192? 
-result <- ds_scaled[, c("county_name", "total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "cluster", "median_age", "death_rate")]
+# result <- ds_scaled[, c("county_name", "total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "cluster", "median_age", "death_rate")]
+
+result <- ds_scaled[, c("infection_rate", "total_pop", "cluster")]
 # print(result)
 
 ```
@@ -283,13 +287,299 @@ result <- ds_scaled[, c("county_name", "total_pop", "rate_of_growth_first_30_day
 
 We can visualize our cluster results with ggplot 
 
+We want to scale our total_pop variable so that we compress large values and spread out smaller values for easier visualization 
+
 ```{r}
-ggplot(result, aes(x = median_age, y = death_rate)) +
+# Create the plot with a log-transformed x-axis
+ggplot(result, aes(x = total_pop, y = infection_rate)) +
   geom_point(aes(color = factor(cluster))) +
-  labs(title = "K Means Clustering of infection rate in Texas Counties", color = "Cluster", x = "median age", y = "Death Rate", caption="Figure 3.1.2") +
-  theme(plot.caption = element_text(hjust=0, size=rel(0.8))) +
+  scale_x_log10(labels = scales::comma) +  # Log-transform the x-axis and format labels
+  labs(title = "K Means Clustering of Infection Rate in Texas Counties",
+       color = "Cluster",
+       x = "Total Population (Log Scale)",
+       y = "Infection Rate",
+       caption = "Figure 3.1.2") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
   theme_minimal()
 
 ```
+Lets also try hierarchical clustering because we are looking at all texas counties so that might display better insights 
+
+
+
+```{r}
+# Compute the distance matrix
+dist_matrix <- dist(cluster_data, method = "euclidean")
+
+# Perform hierarchical clustering using Ward's method
+hc_result <- hclust(dist_matrix, method = "ward.D2")
+
+# Cut the dendrogram to get 4 clusters (you can adjust k based on your preference)
+h_clusters <- cutree(hc_result, k = 4)
+
+# Add the cluster assignments to the result data frame
+result <- result %>% add_column(h_cluster = factor(h_clusters))
+
+```
+
+
+```{r}
+# Load the factoextra package (install if needed)
+# install.packages("factoextra")
+library(factoextra)
+
+# Plot the dendrogram with 4 clusters
+fviz_dend(hc_result, k = 4, 
+          main = "Hierarchical Dendrogram of Texas Counties", 
+          xlab = "", ylab = "Height", sub = "",
+          k_colors = c("#1b9e77", "#d95f02", "#7570b3"),  # Optional: custom colors for clusters
+          rect = TRUE,  # Add rectangles around clusters
+          rect_border = "black", rect_fill = FALSE) +
+  labs(caption = "Figure 3.2.2") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
+  
+```
+
+Now lets look at total_pop and death_rate 
+
+```{r}
+
+
+cluster_data_2 <- ds_scaled[, c("total_pop", "death_rate")]
+
+
+```
+
+We can make an elbow plot to determine the number of clusters that are appropriate 
+
+```{r}
+# Load required libraries
+library(ggplot2)
+
+# Calculate WSS for different numbers of clusters (k from 1 to 8)
+set.seed(123)  # For reproducibility
+wss <- sapply(1:8, function(k) {
+  kmeans(cluster_data_2, centers = k, nstart = 10)$tot.withinss
+})
+
+# Create a data frame for plotting
+elbow_data <- data.frame(
+  k = 1:8,
+  WSS = wss
+)
+
+# Plot the elbow graph
+ggplot(elbow_data, aes(x = k, y = WSS)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Elbow Plot for Optimal Number of Clusters",
+       x = "Number of Clusters (k)",
+       y = "Within-Cluster Sum of Squares (WSS)") +
+  theme_minimal() +
+  scale_x_continuous(breaks = 1:8)
+
+```
+
+K = 4 has the best variance 
+
+
+```{r}
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Perform k-means clustering with 4 clusters
+kmeans_result <- kmeans(cluster_data, centers = 4)
+
+# Add cluster labels to the top10_infection dataset
+ds_scaled$cluster <- kmeans_result$cluster
+
+# Display the results with county names and cluster assignments
+# TODO - is this a repeat of line 192? 
+# result <- ds_scaled[, c("county_name", "total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "cluster", "median_age", "death_rate")]
+
+result <- ds_scaled[, c("death_rate", "total_pop", "cluster")]
+# print(result)
+
+```
+
+```{r}
+# Create the plot with a log-transformed x-axis
+ggplot(result, aes(x = total_pop, y = death_rate)) +
+  geom_point(aes(color = factor(cluster))) +
+  scale_x_log10(labels = scales::comma) +  # Log-transform the x-axis and format labels
+  labs(title = "K Means Clustering of Death Rate in Texas Counties",
+       color = "Cluster",
+       x = "Total Population (Log Scale)",
+       y = "Death Rate",
+       caption = "Figure 3.3.2") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
+  theme_minimal()
+
+```
+
+### 3.2 Quetion 2 - Median Age and Infection Rate 
+
+
+
+
+
+Now lets look at median age and infection rate 
+
+```{r}
+
+
+cluster_data_3 <- ds_scaled[, c("median_age", "infection_rate")]
+
+
+```
+
+We can make an elbow plot to determine the number of clusters that are appropriate 
+
+```{r}
+# Load required libraries
+library(ggplot2)
+
+# Calculate WSS for different numbers of clusters (k from 1 to 8)
+set.seed(123)  # For reproducibility
+wss <- sapply(1:8, function(k) {
+  kmeans(cluster_data_3, centers = k, nstart = 10)$tot.withinss
+})
+
+# Create a data frame for plotting
+elbow_data <- data.frame(
+  k = 1:8,
+  WSS = wss
+)
+
+# Plot the elbow graph
+ggplot(elbow_data, aes(x = k, y = WSS)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Elbow Plot for Optimal Number of Clusters",
+       x = "Number of Clusters (k)",
+       y = "Within-Cluster Sum of Squares (WSS)") +
+  theme_minimal() +
+  scale_x_continuous(breaks = 1:8)
+
+```
+
+K = 3 has the best variance 
+
+
+```{r}
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Perform k-means clustering with 4 clusters
+kmeans_result <- kmeans(cluster_data_3, centers = 3)
+
+# Add cluster labels to the top10_infection dataset
+ds_scaled$cluster <- kmeans_result$cluster
+
+# Display the results with county names and cluster assignments
+# TODO - is this a repeat of line 192? 
+# result <- ds_scaled[, c("county_name", "total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "cluster", "median_age", "death_rate")]
+
+result <- ds_scaled[, c("median_age", "infection_rate", "death_rate", "cluster")]
+# print(result)
+
+```
+
+
+```{r}
+# Create the plot with a log-transformed x-axis
+ggplot(result, aes(x = median_age, y = infection_rate)) +
+  geom_point(aes(color = factor(cluster))) +
+  scale_x_log10(labels = scales::comma) +  # Log-transform the x-axis and format labels
+  labs(title = "K Means Clustering of Median Age and Infection Rate in Texas Counties",
+       color = "Cluster",
+       x = "Median Age",
+       y = "Infection Rate",
+       caption = "Figure 3.4.0") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
+  theme_minimal()
+
+```
+Younger people are less likely to care about regulations and go out, which means their infection rate is higher 
+
+
+Lets also try hierarchical clustering
+
+
+
+
+
+```{r}
+
+# Load necessary packages
+library(factoextra)
+
+# Subset cluster_data to include only median_age and infection_rate
+cluster_data_age_infection <- cluster_data_3[, c("median_age", "infection_rate")]
+
+# Compute the distance matrix
+dist_matrix_age_infection <- dist(cluster_data_age_infection, method = "euclidean")
+
+# Perform hierarchical clustering using Ward's method
+hc_age_infection <- hclust(dist_matrix_age_infection, method = "ward.D2")
+
+# Plot the dendrogram with 3 clusters
+fviz_dend(hc_age_infection, k = 3, 
+          main = "Hierarchical Dendrogram: Median Age and Infection Rate", 
+          xlab = "", ylab = "Height", sub = "",
+          k_colors = c("orange", "green", "blue"),  # Custom colors for clusters
+          rect = TRUE, rect_border = "black", rect_fill = FALSE) +
+  labs(caption = "Figure 3.4.3") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
+
+
+```
+
+
+Now lets also look at median age and death rate 
+
+```{r}
+# Create the plot with a log-transformed x-axis
+ggplot(result, aes(x = median_age, y = death_rate)) +
+  geom_point(aes(color = factor(cluster))) +
+  scale_x_log10(labels = scales::comma) +  # Log-transform the x-axis and format labels
+  labs(title = "K Means Clustering of Median Age and Death Rate in Texas Counties",
+       color = "Cluster",
+       x = "Median Age",
+       y = "Death Rate",
+       caption = "Figure 3.4.1") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
+  theme_minimal()
+
+```
+Older people are more likely to die from Covid than younger people 
+
+
+
+Lets also try hierarchical clustering
+
+```{r}
+# Subset cluster_data to include only median_age and death_rate
+cluster_data_age_death <- cluster_data[, c("median_age", "death_rate")]
+
+# Compute the distance matrix
+dist_matrix_age_death <- dist(cluster_data_age_death, method = "euclidean")
+
+# Perform hierarchical clustering using Ward's method
+hc_age_death <- hclust(dist_matrix_age_death, method = "ward.D2")
+
+# Plot the dendrogram with 3 clusters
+fviz_dend(hc_age_death, k = 3, 
+          main = "Hierarchical Dendrogram: Median Age and Death Rate", 
+          xlab = "", ylab = "Height", sub = "",
+          k_colors = c("#1b9e77", "#d95f02", "#7570b3"),  # Custom colors for clusters
+          rect = TRUE, rect_border = "black", rect_fill = FALSE) +
+  labs(caption = "Figure 3.4.3") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
+
+```
+
 
 
