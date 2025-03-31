@@ -189,7 +189,9 @@ print(top10_infection)
 top10_infection <- ds_scaled[order(-ds_scaled$infection_rate), ][1:10, ]
 
 # Select the variables for clustering
-cluster_data <- ds_scaled[, c("total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "median_age", "death_rate")]
+# cluster_data <- ds_scaled[, c("total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "median_age", "death_rate")]
+
+cluster_data <- ds_scaled[, c("median_age", "infection_rate")]
 
 # Verify the data
 # print(cluster_data)
