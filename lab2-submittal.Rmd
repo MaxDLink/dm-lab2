@@ -429,7 +429,7 @@ Now lets look at median age and infection rate
 ```{r}
 
 
-cluster_data_3 <- ds_scaled[, c("median_age", "infection_rate")]
+cluster_data_2 <- ds_scaled[, c("median_age", "death_rate", "infection_rate")]
 
 
 ```
@@ -443,7 +443,7 @@ library(ggplot2)
 # Calculate WSS for different numbers of clusters (k from 1 to 8)
 set.seed(123)  # For reproducibility
 wss <- sapply(1:8, function(k) {
-  kmeans(cluster_data_3, centers = k, nstart = 10)$tot.withinss
+  kmeans(cluster_data_2, centers = k, nstart = 10)$tot.withinss
 })
 
 # Create a data frame for plotting
@@ -473,7 +473,7 @@ K = 3 has the best variance
 set.seed(123)
 
 # Perform k-means clustering with 4 clusters
-kmeans_result <- kmeans(cluster_data_3, centers = 3)
+kmeans_result <- kmeans(cluster_data_2, centers = 3)
 
 # Add cluster labels to the top10_infection dataset
 ds_scaled$cluster <- kmeans_result$cluster
@@ -507,17 +507,13 @@ Younger people are less likely to care about regulations and go out, which means
 
 Lets also try hierarchical clustering
 
-
-
-
-
 ```{r}
 
 # Load necessary packages
 library(factoextra)
 
 # Subset cluster_data to include only median_age and infection_rate
-cluster_data_age_infection <- cluster_data_3[, c("median_age", "infection_rate")]
+cluster_data_age_infection <- cluster_data_2[, c("median_age", "infection_rate")]
 
 # Compute the distance matrix
 dist_matrix_age_infection <- dist(cluster_data_age_infection, method = "euclidean")
@@ -562,7 +558,7 @@ Lets also try hierarchical clustering
 
 ```{r}
 # Subset cluster_data to include only median_age and death_rate
-cluster_data_age_death <- cluster_data[, c("median_age", "death_rate")]
+cluster_data_age_death <- cluster_data_2[, c("median_age", "death_rate")]
 
 # Compute the distance matrix
 dist_matrix_age_death <- dist(cluster_data_age_death, method = "euclidean")
@@ -574,7 +570,7 @@ hc_age_death <- hclust(dist_matrix_age_death, method = "ward.D2")
 fviz_dend(hc_age_death, k = 3, 
           main = "Hierarchical Dendrogram: Median Age and Death Rate", 
           xlab = "", ylab = "Height", sub = "",
-          k_colors = c("#1b9e77", "#d95f02", "#7570b3"),  # Custom colors for clusters
+          k_colors = c("orange", "green", "blue"),  # Custom colors for clusters
           rect = TRUE, rect_border = "black", rect_fill = FALSE) +
   labs(caption = "Figure 3.4.3") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
