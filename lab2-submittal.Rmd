@@ -3,24 +3,34 @@ Title: Data Mining Lab 2
 Authors: Max Link, Logan Lu, Jadon Klipsch
 Date: "2025-03-21"
 Description: In this project, we will focus on clustering
+output: pdf_document
 ---
   
 ```{r setup, include=FALSE}
-install.packages("xfun")
+# Disable RStudio's package update check for this session
+options("rstudio.package_manager.check_updates" = FALSE)
 
+# Set the CRAN repository
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+
+# Install packages quietly
+if (!requireNamespace("xfun", quietly = TRUE)) {
+  install.packages("xfun", quietly = TRUE)
+}
+if (!requireNamespace("ggrepel", quietly = TRUE)) {
+  install.packages("ggrepel", quietly = TRUE)
+}
+
+# Set knitr options
 knitr::opts_chunk$set(echo = TRUE)
 
-options(repos=c(CRAN = "https://cloud.r-project.org"))
-
-# Load required libraries!!
-library(dplyr)      # For data manipulation
-library(ggplot2)    # For visualizations
-library(tidyr)      # For cleaning data
-install.packages('ggrepel')
-library(ggrepel) 
-
-
-
+# Load required libraries and suppress startup messages
+suppressPackageStartupMessages({
+  library(dplyr)      # For data manipulation
+  library(ggplot2)    # For visualizations
+  library(tidyr)      # For cleaning data
+  library(ggrepel)    # For repelling labels in plots
+})
 ```
 
 
@@ -152,10 +162,11 @@ In Z-score normalization, values below the mean become negative and values above
 
 ```{r}
 
-ds_scaled <- as.data.frame(scale(dataset[, c("confirmed_cases", "deaths", "median_income", 
+ds_scaled <- as.data.frame(scale(dataset[, c("confirmed_cases", "deaths", 
                          "rate_of_growth_first_30_days")]))
 
 # Add county_name back to the scaled dataset
+ds_scaled$median_income <- dataset$median_income
 ds_scaled$infection_rate <- dataset$infection_rate
 ds_scaled$total_pop <- dataset$total_pop
 ds_scaled$death_rate <- dataset$death_rate
@@ -421,9 +432,6 @@ ggplot(result, aes(x = total_pop, y = death_rate)) +
 ### 3.2 Quetion 2 - Median Age and Infection Rate 
 
 
-
-
-
 Now lets look at median age and infection rate 
 
 ```{r}
@@ -578,4 +586,167 @@ fviz_dend(hc_age_death, k = 3,
 ```
 
 
+### 3.3 Quetion 3 - median income and infection rate/death rate 
 
+3.	How does median income affect infection and death rates, and how can median income inform targeted healthcare interventions?
+
+Now lets look at median age and infection rate 
+
+```{r}
+
+
+cluster_data_3 <- ds_scaled[, c("median_income", "death_rate", "infection_rate")]
+
+
+```
+
+We can make an elbow plot to determine the number of clusters that are appropriate 
+
+```{r}
+# Load required libraries
+library(ggplot2)
+
+# Calculate WSS for different numbers of clusters (k from 1 to 8)
+set.seed(123)  # For reproducibility
+wss <- sapply(1:8, function(k) {
+  kmeans(cluster_data_3, centers = k, nstart = 10)$tot.withinss
+})
+
+# Create a data frame for plotting
+elbow_data <- data.frame(
+  k = 1:8,
+  WSS = wss
+)
+
+# Plot the elbow graph
+ggplot(elbow_data, aes(x = k, y = WSS)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Elbow Plot for Optimal Number of Clusters",
+       x = "Number of Clusters (k)",
+       y = "Within-Cluster Sum of Squares (WSS)") +
+  theme_minimal() +
+  scale_x_continuous(breaks = 1:8)
+
+```
+
+K = 3 gives us the best variance 
+
+```{r}
+
+# Set seed for reproducibility
+set.seed(123)
+
+# Perform k-means clustering with 4 clusters
+kmeans_result <- kmeans(cluster_data_3, centers = 3)
+
+# Add cluster labels to the top10_infection dataset
+ds_scaled$cluster <- kmeans_result$cluster
+
+# Display the results with county names and cluster assignments
+# TODO - is this a repeat of line 192? 
+# result <- ds_scaled[, c("county_name", "total_pop", "rate_of_growth_first_30_days", "confirmed_cases", "deaths", "infection_rate", "cluster", "median_age", "death_rate")]
+
+result <- ds_scaled[, c("median_income", "infection_rate", "death_rate", "cluster")]
+# print(result)
+
+```
+
+
+```{r}
+# Create the plot with a log-transformed x-axis
+ggplot(result, aes(x = median_income, y = infection_rate)) +
+  geom_point(aes(color = factor(cluster))) +
+  scale_x_log10(labels = scales::comma) +  # Log-transform the x-axis and format labels
+  labs(title = "K Means Clustering of Median Income and Infection Rate in Texas Counties",
+       color = "Cluster",
+       x = "Median Income",
+       y = "Infection Rate",
+       caption = "Figure 3.5.0") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
+  theme_minimal()
+
+```
+Poorer people have a higher infection rate, which makes sense because they have less access to hospitals and medical care 
+
+
+```{r}
+# Subset cluster_data to include only median_age and death_rate
+cluster_data_age_death <- cluster_data_3[, c("median_income", "infection_rate")]
+
+# Compute the distance matrix
+dist_matrix_age_death <- dist(cluster_data_age_death, method = "euclidean")
+
+# Perform hierarchical clustering using Ward's method
+hc_age_death <- hclust(dist_matrix_age_death, method = "ward.D2")
+
+# Plot the dendrogram with 3 clusters
+fviz_dend(hc_age_death, k = 3, 
+          main = "Hierarchical Dendrogram: Median Age and Death Rate", 
+          xlab = "", ylab = "Height", sub = "",
+          k_colors = c("red", "blue", "green"),  # Custom colors for clusters
+          rect = TRUE, rect_border = "black", rect_fill = FALSE) +
+  labs(caption = "Figure 3.5.2") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
+
+```
+
+Now looking at death rate 
+
+
+```{r}
+# Create the plot with a log-transformed x-axis
+ggplot(result, aes(x = median_income, y = death_rate)) +
+  geom_point(aes(color = factor(cluster))) +
+  scale_x_log10(labels = scales::comma) +  # Log-transform the x-axis and format labels
+  labs(title = "K Means Clustering of Median Income and Death Rate in Texas Counties",
+       color = "Cluster",
+       x = "Median Income",
+       y = "Death Rate",
+       caption = "Figure 3.5.3") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
+  theme_minimal()
+
+```
+We see that poorer people have a higher death rate than medium to high income people. 
+
+
+```{r}
+# Subset cluster_data to include only median_age and death_rate
+cluster_data_age_death <- cluster_data_3[, c("median_income", "death_rate")]
+
+# Compute the distance matrix
+dist_matrix_age_death <- dist(cluster_data_age_death, method = "euclidean")
+
+# Perform hierarchical clustering using Ward's method
+hc_age_death <- hclust(dist_matrix_age_death, method = "ward.D2")
+
+# Plot the dendrogram with 3 clusters
+fviz_dend(hc_age_death, k = 3, 
+          main = "Hierarchical Dendrogram: Median Income and Death Rate", 
+          xlab = "", ylab = "Height", sub = "",
+          k_colors = c("red", "blue", "green"),  # Custom colors for clusters
+          rect = TRUE, rect_border = "black", rect_fill = FALSE) +
+  labs(caption = "Figure 3.4.3") +
+  theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
+
+```
+
+Now we can make a ground truth. We can divide the counties by their median income. 
+
+
+```{r}
+# Use your actual dataset (result) instead of the simulated data
+# We don't need to create a simulated dataset since you provided 'result'
+
+# Categorize counties into socioeconomic groups using quantiles
+quantiles <- quantile(result$median_income, probs = c(0, 0.33, 0.66, 1))
+result$socioeconomic_status <- cut(result$median_income,
+                                   breaks = quantiles,
+                                   labels = c("Low", "Medium", "High"),
+                                   include.lowest = TRUE)
+
+# Check the quantiles
+print("Quantile boundaries for median_income:")
+print(quantiles)
+```
