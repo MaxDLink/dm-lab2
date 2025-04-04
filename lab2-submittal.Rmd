@@ -732,7 +732,7 @@ fviz_dend(hc_age_death, k = 3,
 
 ```
 
-Now we can make a ground truth. We can divide the counties by their median income. 
+Now we can make a ground truth. We can divide the counties by their median income. Lets make a socio_economic variable that contains the three groupings for median income: low, medium, and high. This will act as our ground truth
 
 
 ```{r}
@@ -750,3 +750,28 @@ result$socioeconomic_status <- cut(result$median_income,
 print("Quantile boundaries for median_income:")
 print(quantiles)
 ```
+
+
+Now we can calculate the purity 
+
+```{r}
+# Example for K-means on median_income, infection_rate, death_rate
+contingency_table <- table(result$cluster, result$socioeconomic_status)
+purity <- sum(apply(contingency_table, 1, max)) / nrow(result)
+print(purity)
+```
+
+our clusters for median_income and death_rate have a 67% purity. Having a high purity means that the clusters are homogenous with respect to median_income.
+
+Now we can look at the ARI score, with a 1 indicating perfect agreement between our clusters and ground truth and -1 indicating no agreement
+
+```{r}
+
+library(mclust)
+ari <- adjustedRandIndex(result$cluster, result$socioeconomic_status)
+print(ari)
+
+```
+
+This reading is closer to 1 than -1, so we have a majority agreement with our ground truth 
+
