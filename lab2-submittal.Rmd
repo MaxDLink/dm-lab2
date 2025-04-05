@@ -237,7 +237,8 @@ ggplot(elbow_data, aes(x = k, y = WSS)) +
   geom_point() +
   labs(title = "Elbow Plot for Optimal Number of Clusters",
        x = "Number of Clusters (k)",
-       y = "Within-Cluster Sum of Squares (WSS)") +
+       y = "Within-Cluster Sum of Squares (WSS)",
+       caption = "Figure 3.1.0")  +
   theme_minimal() +
   scale_x_continuous(breaks = 1:8)
 
@@ -268,7 +269,8 @@ ggplot(sil_data, aes(x = k, y = Silhouette)) +
   geom_point() +
   labs(title = "Silhouette Plot for Optimal Number of Clusters",
        x = "Number of Clusters (k)",
-       y = "Average Silhouette Score") +
+       y = "Average Silhouette Score", 
+        caption = "Figure 3.2.0") +
   theme_minimal() +
   scale_x_continuous(breaks = 2:8)
 ```
@@ -312,7 +314,7 @@ ggplot(result, aes(x = total_pop, y = infection_rate)) +
        color = "Cluster",
        x = "Total Population (Log Scale)",
        y = "Infection Rate",
-       caption = "Figure 3.1.2") +
+       caption = "Figure 3.1.3") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
   theme_minimal()
 
@@ -349,7 +351,7 @@ fviz_dend(hc_result, k = 4,
           k_colors = c("#1b9e77", "#d95f02", "#7570b3"),  # Optional: custom colors for clusters
           rect = TRUE,  # Add rectangles around clusters
           rect_border = "black", rect_fill = FALSE) +
-  labs(caption = "Figure 3.2.2") +
+  labs(caption = "Figure 3.1.4") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
   
 ```
@@ -388,7 +390,8 @@ ggplot(elbow_data, aes(x = k, y = WSS)) +
   geom_point() +
   labs(title = "Elbow Plot for Optimal Number of Clusters",
        x = "Number of Clusters (k)",
-       y = "Within-Cluster Sum of Squares (WSS)") +
+       y = "Within-Cluster Sum of Squares (WSS)", 
+        caption = "Figure 3.1.5") +
   theme_minimal() +
   scale_x_continuous(breaks = 1:8)
 
@@ -426,7 +429,7 @@ ggplot(result, aes(x = total_pop, y = death_rate)) +
        color = "Cluster",
        x = "Total Population (Log Scale)",
        y = "Death Rate",
-       caption = "Figure 3.3.2") +
+       caption = "Figure 3.1.6") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
   theme_minimal()
 
@@ -469,7 +472,8 @@ ggplot(elbow_data, aes(x = k, y = WSS)) +
   geom_point() +
   labs(title = "Elbow Plot for Optimal Number of Clusters",
        x = "Number of Clusters (k)",
-       y = "Within-Cluster Sum of Squares (WSS)") +
+       y = "Within-Cluster Sum of Squares (WSS)", 
+        caption = "Figure 3.2.0") +
   theme_minimal() +
   scale_x_continuous(breaks = 1:8)
 
@@ -508,7 +512,7 @@ ggplot(result, aes(x = median_age, y = infection_rate)) +
        color = "Cluster",
        x = "Median Age",
        y = "Infection Rate",
-       caption = "Figure 3.4.0") +
+       caption = "Figure 3.2.1") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
   theme_minimal()
 
@@ -538,7 +542,7 @@ fviz_dend(hc_age_infection, k = 3,
           xlab = "", ylab = "Height", sub = "",
           k_colors = c("orange", "green", "blue"),  # Custom colors for clusters
           rect = TRUE, rect_border = "black", rect_fill = FALSE) +
-  labs(caption = "Figure 3.4.3") +
+  labs(caption = "Figure 3.2.2") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
 
 
@@ -556,7 +560,7 @@ ggplot(result, aes(x = median_age, y = death_rate)) +
        color = "Cluster",
        x = "Median Age",
        y = "Death Rate",
-       caption = "Figure 3.4.1") +
+       caption = "Figure 3.2.3") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
   theme_minimal()
 
@@ -583,7 +587,7 @@ fviz_dend(hc_age_death, k = 3,
           xlab = "", ylab = "Height", sub = "",
           k_colors = c("orange", "green", "blue"),  # Custom colors for clusters
           rect = TRUE, rect_border = "black", rect_fill = FALSE) +
-  labs(caption = "Figure 3.4.3") +
+  labs(caption = "Figure 3.2.4") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
 
 ```
@@ -627,7 +631,8 @@ ggplot(elbow_data, aes(x = k, y = WSS)) +
   geom_point() +
   labs(title = "Elbow Plot for Optimal Number of Clusters",
        x = "Number of Clusters (k)",
-       y = "Within-Cluster Sum of Squares (WSS)") +
+       y = "Within-Cluster Sum of Squares (WSS)", 
+        caption = "Figure 3.3.0") +
   theme_minimal() +
   scale_x_continuous(breaks = 1:8)
 
@@ -665,7 +670,7 @@ ggplot(result, aes(x = median_income, y = infection_rate)) +
        color = "Cluster",
        x = "Median Income",
        y = "Infection Rate",
-       caption = "Figure 3.5.0") +
+       caption = "Figure 3.3.1") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
   theme_minimal()
 
@@ -689,7 +694,7 @@ fviz_dend(hc_age_death, k = 3,
           xlab = "", ylab = "Height", sub = "",
           k_colors = c("red", "blue", "green"),  # Custom colors for clusters
           rect = TRUE, rect_border = "black", rect_fill = FALSE) +
-  labs(caption = "Figure 3.5.2") +
+  labs(caption = "Figure 3.3.2") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
 
 ```
@@ -706,7 +711,7 @@ ggplot(result, aes(x = median_income, y = death_rate)) +
        color = "Cluster",
        x = "Median Income",
        y = "Death Rate",
-       caption = "Figure 3.5.3") +
+       caption = "Figure 3.3.3") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8))) +
   theme_minimal()
 
@@ -730,7 +735,7 @@ fviz_dend(hc_age_death, k = 3,
           xlab = "", ylab = "Height", sub = "",
           k_colors = c("red", "blue", "green"),  # Custom colors for clusters
           rect = TRUE, rect_border = "black", rect_fill = FALSE) +
-  labs(caption = "Figure 3.4.3") +
+  labs(caption = "Figure 3.3.4") +
   theme(plot.caption = element_text(hjust = 0, size = rel(0.8)))
 
 ```
