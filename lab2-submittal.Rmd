@@ -3,7 +3,10 @@ Title: Data Mining Lab 2
 Authors: Max Link, Logan Lu, Jadon Klipsch
 Date: "2025-03-21"
 Description: In this project, we will focus on clustering
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
+  word_document: default
 ---
   
 ```{r setup, include=FALSE}
@@ -120,7 +123,7 @@ We can read in tx_data_with_gr.csv to get our same object from lab 1.
 
 dataset <- read.csv("tx_data_with_gr.csv")
 
-print(dataset)
+# print(dataset)
 ```
 
 
@@ -682,7 +685,7 @@ hc_age_death <- hclust(dist_matrix_age_death, method = "ward.D2")
 
 # Plot the dendrogram with 3 clusters
 fviz_dend(hc_age_death, k = 3, 
-          main = "Hierarchical Dendrogram: Median Age and Death Rate", 
+          main = "Hierarchical Dendrogram: Median Income and Death Rate", 
           xlab = "", ylab = "Height", sub = "",
           k_colors = c("red", "blue", "green"),  # Custom colors for clusters
           rect = TRUE, rect_border = "black", rect_fill = FALSE) +
